@@ -16,7 +16,11 @@
 """
 Main script. See README.md for more information
 
-Use python 3
+Use python 3 virtualenv: source py3env/bin/activate
+
+Train: python main.py --nutrition --maxLengh 100
+
+Test: python main.py --nutrition --test interactive
 """
 
 import argparse  # Command line parsing
@@ -62,14 +66,16 @@ class Chatbot:
         self.sess = None
 
         # Filename and directories constants
-        self.MODEL_DIR_BASE = 'save/model'
+        #self.MODEL_DIR_BASE = 'save/model'
+        self.MODEL_DIR_BASE = 'save/meal-model'
         self.MODEL_NAME_BASE = 'model'
         self.MODEL_EXT = '.ckpt'
         self.CONFIG_FILENAME = 'params.ini'
         self.CONFIG_VERSION = '0.3'
         self.TEST_IN_NAME = 'data/test/samples.txt'
         self.TEST_OUT_SUFFIX = '_predictions.txt'
-        self.SENTENCES_PREFIX = ['Q: ', 'A: ']
+        #self.SENTENCES_PREFIX = ['Q: ', 'A: ']
+        self.SENTENCES_PREFIX = ['Input meal: ', 'Output meal: ']
 
     @staticmethod
     def parseArgs(args):
@@ -80,6 +86,8 @@ class Chatbot:
         """
 
         parser = argparse.ArgumentParser()
+
+        # TODO: add attention option
 
         # Global options
         globalArgs = parser.add_argument_group('Global options')
@@ -103,7 +111,7 @@ class Chatbot:
 
         # Dataset options
         datasetArgs = parser.add_argument_group('Dataset options')
-        datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset. Only one corpus available right now (Cornell)')
+        datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset: cornell or nutrition')
         datasetArgs.add_argument('--datasetTag', type=str, default=None, help='add a tag to the dataset (file where to load the vocabulary and the precomputed samples, not the original corpus). Useful to manage multiple versions')  # The samples are computed from the corpus if it does not exist already. There are saved in \'data/samples/\'
         datasetArgs.add_argument('--ratioDataset', type=float, default=1.0, help='ratio of dataset used to avoid using the whole dataset')  # Not implemented, useless ?
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')

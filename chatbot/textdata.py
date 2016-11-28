@@ -26,6 +26,7 @@ import os  # Checking file existance
 import random
 
 from chatbot.cornelldata import CornellData
+from chatbot.mealdata import MealData
 
 
 class Batch:
@@ -52,8 +53,11 @@ class TextData:
         self.args = args
 
         # Path variables
-        self.corpusDir = os.path.join(self.args.rootDir, 'data/cornell/')
-        self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')
+        if self.args.corpus == 'cornell':
+            self.corpusDir = os.path.join(self.args.rootDir, 'data/cornell/')
+        else:
+            self.corpusDir = '/usr/users/zcollins/Data_Files/allfood/'
+        self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')            
         self.samplesName = self._constructName()
 
         self.padToken = -1  # Padding
@@ -211,8 +215,12 @@ class TextData:
         if not datasetExist:  # First time we load the database: creating all files
             print('Training samples not found. Creating dataset...')
             # Corpus creation
-            cornellData = CornellData(self.corpusDir)
-            self.createCorpus(cornellData.getConversations())
+            if self.args.corpus == 'cornell':
+                cornellData = CornellData(self.corpusDir)
+                self.createCorpus(cornellData.getConversations())
+            else:
+                mealData = MealData(self.corpusDir)
+                self.createCorpus(mealData.getMeals())
 
             # Saving
             print('Saving dataset...')
@@ -264,8 +272,12 @@ class TextData:
 
         # Preprocessing data
 
-        for conversation in tqdm(conversations, desc="Extract conversations"):
-            self.extractConversation(conversation)
+        if self.args.corpus == 'cornell':
+            for conversation in tqdm(conversations, desc="Extract conversations"):
+                self.extractConversation(conversation)
+        else:
+            for meal in tqdm(conversations, desc="Extract conversations"):
+                self.extractMeal(meal)
 
         # The dataset will be saved in the same order it has been extracted
 
@@ -284,6 +296,17 @@ class TextData:
             targetWords = self.extractText(targetLine["text"], True)
 
             if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
+                self.trainingSamples.append([inputWords, targetWords])
+
+    def extractMeal(self, meal):
+        """Extract the sample meal descriptions
+        Args:
+            meal (str): the meal description text
+        """
+        inputWords  = self.extractText(meal)
+        targetWords = self.extractText(meal, True)
+
+        if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
                 self.trainingSamples.append([inputWords, targetWords])
 
     def extractText(self, line, isTarget=False):
