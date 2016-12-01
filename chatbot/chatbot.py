@@ -16,11 +16,16 @@
 """
 Main script. See README.md for more information
 
-Use python 3 virtualenv: source py3env/bin/activate
+Use python 3.5 virtualenv: source py3.5env/bin/activate
 
-Train: python main.py --nutrition --maxLengh 100
+Train: python main.py --corpus nutrition
 
-Test: python main.py --nutrition --test interactive
+Test: python main.py --corpus nutrition --test interactive
+
+--encode_food_descrips 1 -> uses USDA food description as input (not meal)
+--encode_food_ids 1 -> uses USDA food ID as input
+--encode_single_food_descrip 1 -> uses one USDA food description as input
+
 """
 
 import argparse  # Command line parsing
@@ -66,16 +71,14 @@ class Chatbot:
         self.sess = None
 
         # Filename and directories constants
-        #self.MODEL_DIR_BASE = 'save/model'
-        self.MODEL_DIR_BASE = 'save/meal-model'
+        self.MODEL_DIR_BASE = 'save/model'
         self.MODEL_NAME_BASE = 'model'
         self.MODEL_EXT = '.ckpt'
         self.CONFIG_FILENAME = 'params.ini'
         self.CONFIG_VERSION = '0.3'
         self.TEST_IN_NAME = 'data/test/samples.txt'
         self.TEST_OUT_SUFFIX = '_predictions.txt'
-        #self.SENTENCES_PREFIX = ['Q: ', 'A: ']
-        self.SENTENCES_PREFIX = ['Input meal: ', 'Output meal: ']
+        self.SENTENCES_PREFIX = ['Q: ', 'A: ']
 
     @staticmethod
     def parseArgs(args):
@@ -86,8 +89,6 @@ class Chatbot:
         """
 
         parser = argparse.ArgumentParser()
-
-        # TODO: add attention option
 
         # Global options
         globalArgs = parser.add_argument_group('Global options')
@@ -112,6 +113,9 @@ class Chatbot:
         # Dataset options
         datasetArgs = parser.add_argument_group('Dataset options')
         datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset: cornell or nutrition')
+        datasetArgs.add_argument('--encode_food_descrips', type=int, default=0, help='whether to encode food descriptions')
+        datasetArgs.add_argument('--encode_food_ids', type=int, default=0, help='whether to encode food descriptions')
+        datasetArgs.add_argument('--encode_single_food_descrip', type=int, default=0, help='whether to encode food descriptions')
         datasetArgs.add_argument('--datasetTag', type=str, default=None, help='add a tag to the dataset (file where to load the vocabulary and the precomputed samples, not the original corpus). Useful to manage multiple versions')  # The samples are computed from the corpus if it does not exist already. There are saved in \'data/samples/\'
         datasetArgs.add_argument('--ratioDataset', type=float, default=1.0, help='ratio of dataset used to avoid using the whole dataset')  # Not implemented, useless ?
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')
@@ -122,6 +126,7 @@ class Chatbot:
         nnArgs.add_argument('--numLayers', type=int, default=2, help='number of rnn layers')
         nnArgs.add_argument('--embeddingSize', type=int, default=32, help='embedding size of the word representation')
         nnArgs.add_argument('--softmaxSamples', type=int, default=0, help='Number of samples in the sampled softmax loss function. A value of 0 deactivates sampled softmax')
+        nnArgs.add_argument('--attention', type=int, default=0, help='whether to use RNN with attention')
         
         # Training options
         trainingArgs = parser.add_argument_group('Training options')
@@ -143,6 +148,22 @@ class Chatbot:
         # General initialisation
 
         self.args = self.parseArgs(args)
+        if self.args.corpus == 'nutrition':
+            self.args.maxLength = 100
+            if self.args.encode_food_descrips:
+                self.MODEL_DIR_BASE = 'save/food-meal-model'
+                self.SENTENCES_PREFIX = ['Input food: ', 'Output meal: ']
+            elif self.args.encode_single_food_descrip:
+                self.MODEL_DIR_BASE = 'save/single-food-meal-model'
+                self.SENTENCES_PREFIX = ['Input food: ', 'Output meal: ']
+            elif self.args.encode_food_ids:
+                self.MODEL_DIR_BASE = 'save/foodID-meal-model'
+                self.SENTENCES_PREFIX = ['Input food: ', 'Output meal: ']
+            else:
+                self.MODEL_DIR_BASE = 'save/meal-model'
+                self.SENTENCES_PREFIX = ['Input meal: ', 'Output meal: ']
+        if self.args.attention:
+            self.MODEL_DIR_BASE += '-attention'
 
         if not self.args.rootDir:
             self.args.rootDir = os.getcwd()  # Use the current working directory

@@ -57,8 +57,18 @@ class TextData:
             self.corpusDir = os.path.join(self.args.rootDir, 'data/cornell/')
         else:
             self.corpusDir = '/usr/users/zcollins/Data_Files/allfood/'
-        self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')            
+        self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')
+        if self.args.corpus == 'nutrition':
+            if self.args.encode_food_descrips:
+                self.samplesDir += 'food-descrip/'
+            elif self.args.encode_single_food_descrip:
+                self.samplesDir += 'single-food-descrip/'
+            elif self.args.encode_food_ids:
+                self.samplesDir += 'food-id/'
+            else:
+                self.samplesDir += 'meal/'
         self.samplesName = self._constructName()
+        print(self.samplesDir, self.samplesName)
 
         self.padToken = -1  # Padding
         self.goToken = -1  # Start of sequence
@@ -220,7 +230,20 @@ class TextData:
                 self.createCorpus(cornellData.getConversations())
             else:
                 mealData = MealData(self.corpusDir)
-                self.createCorpus(mealData.getMeals())
+           
+                
+                # TODO: try with meal as encoder input, IDs as decoder input
+                # TODO: try with USDA embeddings as input
+        
+                if self.args.encode_food_descrips:
+                    self.createCorpus(zip(mealData.getFoodDescrips(), mealData.getMeals()))
+                elif self.args.encode_single_food_descrip:
+                    # TODO: only do single food descriptions and aligned segments?
+                    self.createCorpus(zip(mealData.getSingleFoodDescrips(), mealData.getAlignments()))
+                elif self.args.encode_food_ids:
+                    self.createCorpus(zip(mealData.getFoodIDs(), mealData.getMeals()))
+                else:
+                    self.createCorpus(mealData.getMeals())
 
             # Saving
             print('Saving dataset...')
@@ -272,12 +295,17 @@ class TextData:
 
         # Preprocessing data
 
-        if self.args.corpus == 'cornell':
-            for conversation in tqdm(conversations, desc="Extract conversations"):
+        
+        for conversation in tqdm(conversations, desc="Extract conversations"):
+            if self.args.corpus == 'cornell':
                 self.extractConversation(conversation)
-        else:
-            for meal in tqdm(conversations, desc="Extract conversations"):
-                self.extractMeal(meal)
+            elif self.args.encode_food_descrips or self.args.encode_food_ids:
+                self.extractFoods(conversation[0], conversation[1])
+            elif self.args.encode_single_food_descrip:
+                self.extractFoods([conversation[0]], conversation[1])
+            else:
+                # encode and decode meals
+                self.extractMeal(conversation)
 
         # The dataset will be saved in the same order it has been extracted
 
@@ -304,6 +332,23 @@ class TextData:
             meal (str): the meal description text
         """
         inputWords  = self.extractText(meal)
+        targetWords = self.extractText(meal, True)
+
+        if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
+                self.trainingSamples.append([inputWords, targetWords])
+
+    def extractFoods(self, foods, meal):
+        """Extract the sample's matching food descriptions
+        Args:
+            foods (list): the matching food descriptions
+        """
+        inputWords  = []
+        if self.args.encode_food_descrips or self.args.encode_single_food_descrip:
+            for food_descrip in foods:
+                inputWords.extend(self.extractText(food_descrip))
+        elif self.args.encode_food_ids:
+            for food_id in foods:
+                inputWords.append(self.getWordId(food_id))
         targetWords = self.extractText(meal, True)
 
         if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)

@@ -21,7 +21,10 @@ Main script. See README.md for more information
 Use python 3
 """
 
+import os
 from chatbot import chatbot
+
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 
 if __name__ == "__main__":
