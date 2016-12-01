@@ -160,6 +160,7 @@ class Model:
             rnn_model = tf.nn.seq2seq.embedding_attention_seq2seq
         else:
             rnn_model = tf.nn.seq2seq.embedding_rnn_seq2seq
+            
         decoderOutputs, states = rnn_model(
             self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
             self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
@@ -226,7 +227,11 @@ class Model:
         else:  # Testing (batchSize == 1)
             for i in range(self.args.maxLengthEnco):
                 feedDict[self.encoderInputs[i]]  = batch.encoderSeqs[i]
-            feedDict[self.decoderInputs[0]]  = [self.textData.goToken]
+            if self.match_encoder_decoder_input:
+                # use encoder input as decoder input
+                feedDict[self.decoderInputs[0]]  = [self.textData.goToken] + batch.encoderSeqs[i] + [self.textData.eosToken]
+            else:
+                feedDict[self.decoderInputs[0]]  = [self.textData.goToken]
 
             ops = (self.outputs,)
 

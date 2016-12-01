@@ -60,13 +60,19 @@ class TextData:
         self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')
         if self.args.corpus == 'nutrition':
             if self.args.encode_food_descrips:
-                self.samplesDir += 'food-descrip/'
+                self.samplesDir += 'food-descrip'
             elif self.args.encode_single_food_descrip:
-                self.samplesDir += 'single-food-descrip/'
+                self.samplesDir += 'single-food-descrip'
             elif self.args.encode_food_ids:
-                self.samplesDir += 'food-id/'
+                self.samplesDir += 'food-id'
             else:
-                self.samplesDir += 'meal/'
+                self.samplesDir += 'meal'
+
+            if self.args.match_encoder_decoder_input:
+                self.samplesDir += '-match-decoder'
+
+            self.samplesDir += '/'
+            
         self.samplesName = self._constructName()
         print(self.samplesDir, self.samplesName)
 
@@ -132,8 +138,13 @@ class TextData:
             if not self.args.test and self.args.watsonMode:  # Watson mode: invert question and answer
                 sample = list(reversed(sample))
             batch.encoderSeqs.append(list(reversed(sample[0])))  # Reverse inputs (and not outputs), little trick as defined on the original seq2seq paper
-            batch.decoderSeqs.append([self.goToken] + sample[1] + [self.eosToken])  # Add the <go> and <eos> tokens
-            batch.targetSeqs.append(batch.decoderSeqs[-1][1:])  # Same as decoder, but shifted to the left (ignore the <go>)
+            target_seq_with_go = [self.goToken] + sample[1] + [self.eosToken]
+            if self.args.match_encoder_decoder_input:
+                # use encoder input as decoder input
+                batch.decoderSeqs.append([self.goToken] + sample[0] + [self.eosToken])
+            else:
+                batch.decoderSeqs.append(target_seq_with_go)  # Add the <go> and <eos> tokens
+            batch.targetSeqs.append(target_seq_with_go[1:])  # target seq, but shifted to the left (ignore the <go>)
 
             # Long sentences should have been filtered during the dataset creation
             assert len(batch.encoderSeqs[i]) <= self.args.maxLengthEnco
@@ -232,13 +243,12 @@ class TextData:
                 mealData = MealData(self.corpusDir)
            
                 
-                # TODO: try with meal as encoder input, IDs as decoder input
-                # TODO: try with USDA embeddings as input
+                # TODO: try with meal as target, IDs as encoder/decoder input
+                # TODO: try with USDA embeddings as input?
         
                 if self.args.encode_food_descrips:
                     self.createCorpus(zip(mealData.getFoodDescrips(), mealData.getMeals()))
                 elif self.args.encode_single_food_descrip:
-                    # TODO: only do single food descriptions and aligned segments?
                     self.createCorpus(zip(mealData.getSingleFoodDescrips(), mealData.getAlignments()))
                 elif self.args.encode_food_ids:
                     self.createCorpus(zip(mealData.getFoodIDs(), mealData.getMeals()))

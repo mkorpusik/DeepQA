@@ -25,6 +25,7 @@ Test: python main.py --corpus nutrition --test interactive
 --encode_food_descrips 1 -> uses USDA food description as input (not meal)
 --encode_food_ids 1 -> uses USDA food ID as input
 --encode_single_food_descrip 1 -> uses one USDA food description as input
+--match_encoder_decoder_input 1 -> uses same input as encoder for decoder
 
 """
 
@@ -115,7 +116,8 @@ class Chatbot:
         datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset: cornell or nutrition')
         datasetArgs.add_argument('--encode_food_descrips', type=int, default=0, help='whether to encode food descriptions')
         datasetArgs.add_argument('--encode_food_ids', type=int, default=0, help='whether to encode food descriptions')
-        datasetArgs.add_argument('--encode_single_food_descrip', type=int, default=0, help='whether to encode food descriptions')
+        datasetArgs.add_argument('--encode_single_food_descrip', type=int, default=0, help='whether to encode single food descriptions')
+        datasetArgs.add_argument('--match_encoder_decoder_input', type=int, default=0, help='whether to use same input for encoder and decoder')
         datasetArgs.add_argument('--datasetTag', type=str, default=None, help='add a tag to the dataset (file where to load the vocabulary and the precomputed samples, not the original corpus). Useful to manage multiple versions')  # The samples are computed from the corpus if it does not exist already. There are saved in \'data/samples/\'
         datasetArgs.add_argument('--ratioDataset', type=float, default=1.0, help='ratio of dataset used to avoid using the whole dataset')  # Not implemented, useless ?
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')
@@ -162,6 +164,10 @@ class Chatbot:
             else:
                 self.MODEL_DIR_BASE = 'save/meal-model'
                 self.SENTENCES_PREFIX = ['Input meal: ', 'Output meal: ']
+
+        if self.args.match_encoder_decoder_input:
+            self.MODEL_DIR_BASE += '-match-decoder'
+            
         if self.args.attention:
             self.MODEL_DIR_BASE += '-attention'
 

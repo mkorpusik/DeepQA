@@ -24,7 +24,7 @@ Use python 3
 import os
 from chatbot import chatbot
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 
 if __name__ == "__main__":
