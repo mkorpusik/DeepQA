@@ -241,10 +241,6 @@ class TextData:
                 self.createCorpus(cornellData.getConversations())
             else:
                 mealData = MealData(self.corpusDir)
-           
-                
-                # TODO: try with meal as target, IDs as encoder/decoder input
-                # TODO: try with USDA embeddings as input?
         
                 if self.args.encode_food_descrips:
                     self.createCorpus(zip(mealData.getFoodDescrips(), mealData.getMeals()))

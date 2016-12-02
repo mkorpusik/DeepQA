@@ -202,7 +202,7 @@ class Model:
             )
             self.optOp = opt.minimize(self.lossFct)
 
-    def step(self, batch):
+    def step(self, batch, match_encoder_decoder_input=False):
         """ Forward/training step operation.
         Does not perform run on itself but just return the operators to do so. Those have then to be run
         Args:
@@ -227,9 +227,10 @@ class Model:
         else:  # Testing (batchSize == 1)
             for i in range(self.args.maxLengthEnco):
                 feedDict[self.encoderInputs[i]]  = batch.encoderSeqs[i]
-            if self.match_encoder_decoder_input:
+            if match_encoder_decoder_input:
                 # use encoder input as decoder input
-                feedDict[self.decoderInputs[0]]  = [self.textData.goToken] + batch.encoderSeqs[i] + [self.textData.eosToken]
+                for i in range(self.args.maxLengthDeco):
+                    feedDict[self.decoderInputs[i]]  = batch.decoderSeqs[i]
             else:
                 feedDict[self.decoderInputs[0]]  = [self.textData.goToken]
 

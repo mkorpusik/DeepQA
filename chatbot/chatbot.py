@@ -369,7 +369,7 @@ class Chatbot:
             questionSeq.extend(batch.encoderSeqs)
 
         # Run the model
-        ops, feedDict = self.model.step(batch)
+        ops, feedDict = self.model.step(batch, self.args.match_encoder_decoder_input)
         output = self.sess.run(ops[0], feedDict)  # TODO: Summarize the output too (histogram, ...)
         answer = self.textData.deco2sentence(output)
 
