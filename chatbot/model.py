@@ -139,9 +139,9 @@ class Model:
                     self.dtype)
 
         # Creation of the rnn cell
-        encoDecoCell = tf.nn.rnn_cell.BasicLSTMCell(self.args.hiddenSize, state_is_tuple=True)  # Or GRUCell, LSTMCell(args.hiddenSize)
-        #encoDecoCell = tf.nn.rnn_cell.DropoutWrapper(encoDecoCell, input_keep_prob=1.0, output_keep_prob=1.0)  # TODO: Custom values (WARNING: No dropout when testing !!!)
-        encoDecoCell = tf.nn.rnn_cell.MultiRNNCell([encoDecoCell] * self.args.numLayers, state_is_tuple=True)
+        encoDecoCell = tf.contrib.rnn.BasicLSTMCell(self.args.hiddenSize, state_is_tuple=True)  # Or GRUCell, LSTMCell(args.hiddenSize)
+        #encoDecoCell = tf.contrib.rnn.DropoutWrapper(encoDecoCell, input_keep_prob=1.0, output_keep_prob=1.0)  # TODO: Custom values (WARNING: No dropout when testing !!!)
+        encoDecoCell = tf.contrib.rnn.MultiRNNCell([encoDecoCell] * self.args.numLayers, state_is_tuple=True)
 
         # Network input (placeholders)
 
@@ -157,9 +157,9 @@ class Model:
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
         if self.args.attention:
-            rnn_model = tf.nn.seq2seq.embedding_attention_seq2seq
+            rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
         else:
-            rnn_model = tf.nn.seq2seq.embedding_rnn_seq2seq
+            rnn_model = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq
             
         decoderOutputs, states = rnn_model(
             self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
@@ -184,7 +184,7 @@ class Model:
         # For training only
         else:
             # Finally, we define the loss function
-            self.lossFct = tf.nn.seq2seq.sequence_loss(
+            self.lossFct = tf.contrib.legacy_seq2seq.sequence_loss(
                 decoderOutputs,
                 self.decoderTargets,
                 self.decoderWeights,

@@ -22,7 +22,7 @@ For now, it uses the [Cornell Movie Dialogs](http://www.cs.cornell.edu/~cristian
 
 The program requires the following dependencies (easy to install using pip):
  * python 3.5
- * tensorflow (tested with v0.9.0)
+ * tensorflow (tested with v1.0)
  * numpy
  * CUDA (for using gpu, see TensorFlow [installation page](https://www.tensorflow.org/versions/master/get_started/os_setup.html#optional-install-cuda-gpus-on-linux) for more details)
  * nltk (natural language toolkit for tokenized the sentences)
