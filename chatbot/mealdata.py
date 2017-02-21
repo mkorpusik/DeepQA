@@ -35,7 +35,7 @@ class MealData:
         meal_lines = open(dirName + 'allfood_diaries_all.txt').readlines()
         self.meals = []
         alignments = open('/usr/users/korpusik/USDA-encoder/alignments/alignments_allfood_all_cnn_segmenter').readlines()
-        #self.usda_vecs = pickle.load(open('/usr/users/korpusik/USDA-encoder/models/allfood_matcher_lowercase_nousdacnn_aligned_vecs_dict', 'rb'))
+        self.usda_vecs = pickle.load(open('/usr/users/korpusik/USDA-encoder/models/allfood_matcher_lowercase_nousdacnn_aligned_vecs_dict', 'rb'), encoding='latin1')
         self.food_IDs = [] # list of food ID lists per meal diary
         self.food_descrips = [] # list of food descriptions per meal diary
         self.single_food_descrips = [] # list of single food descriptions

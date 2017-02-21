@@ -165,6 +165,11 @@ class Chatbot:
                 self.MODEL_DIR_BASE = 'save/meal-model'
                 self.SENTENCES_PREFIX = ['Input meal: ', 'Output meal: ']
 
+        elif self.args.corpus == 'healthy-comments':
+            self.args.maxLength = 100
+            self.MODEL_DIR_BASE = 'save/healthy-comments'
+            self.SENTENCES_PREFIX = ['Input meal: ', 'Output comment: ']
+
         if self.args.match_encoder_decoder_input:
             self.MODEL_DIR_BASE += '-match-decoder'
             
@@ -192,8 +197,8 @@ class Chatbot:
             self.model = Model(self.args, self.textData)
 
         # Saver/summaries
-        self.writer = tf.train.SummaryWriter(self._getSummaryName())
-        self.saver = tf.train.Saver(max_to_keep=200)  # Arbitrary limit ?
+        self.writer = tf.summary.FileWriter(self._getSummaryName())
+        self.saver = tf.train.Saver(max_to_keep=200, write_version=tf.train.SaverDef.V1)  # Arbitrary limit ?
 
         # TODO: Fixed seed (WARNING: If dataset shuffling, make sure to do that after saving the
         # dataset, otherwise, all which cames after the shuffling won't be replicable when
