@@ -27,6 +27,7 @@ import random
 
 from chatbot.cornelldata import CornellData
 from chatbot.mealdata import MealData
+from chatbot.healthydata import HealthyData
 
 
 class Batch:
@@ -55,10 +56,9 @@ class TextData:
         # Path variables
         if self.args.corpus == 'cornell':
             self.corpusDir = os.path.join(self.args.rootDir, 'data/cornell/')
-        else:
-            self.corpusDir = '/usr/users/zcollins/Data_Files/allfood/'
         self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')
         if self.args.corpus == 'nutrition':
+            self.corpusDir = '/usr/users/zcollins/Data_Files/allfood/'
             if self.args.encode_food_descrips:
                 self.samplesDir += 'food-descrip'
             elif self.args.encode_single_food_descrip:
@@ -72,6 +72,9 @@ class TextData:
                 self.samplesDir += '-match-decoder'
 
             self.samplesDir += '/'
+        elif self.args.corpus == 'healthy-comments':
+            self.corpusDir = '/usr/users/korpusik/nutrition/Talia_data/'
+            self.samplesDir += 'healthy-comments'
             
         self.samplesName = self._constructName()
         print(self.samplesDir, self.samplesName)
@@ -106,9 +109,9 @@ class TextData:
     def makeLighter(self, ratioDataset):
         """Only keep a small fraction of the dataset, given by the ratio
         """
-        if not math.isclose(ratioDataset, 1.0):
-            self.shuffle()  # Really ?
-            print('WARNING: Ratio feature not implemented !!!')
+        #if not math.isclose(ratioDataset, 1.0):
+        #    self.shuffle()  # Really ?
+        #    print('WARNING: Ratio feature not implemented !!!')
         pass
 
     def shuffle(self):
@@ -239,7 +242,7 @@ class TextData:
             if self.args.corpus == 'cornell':
                 cornellData = CornellData(self.corpusDir)
                 self.createCorpus(cornellData.getConversations())
-            else:
+            elif self.args.corpus == 'nutrition':
                 mealData = MealData(self.corpusDir)
         
                 if self.args.encode_food_descrips:
@@ -250,6 +253,9 @@ class TextData:
                     self.createCorpus(zip(mealData.getFoodIDs(), mealData.getMeals()))
                 else:
                     self.createCorpus(mealData.getMeals())
+            elif self.args.corpus == 'healthy-comments':
+                healthyData = HealthyData(self.corpusDir)
+                self.createCorpus(zip(healthyData.getMeals(), healthyData.getResponses()))
 
             # Saving
             print('Saving dataset...')
@@ -305,6 +311,8 @@ class TextData:
         for conversation in tqdm(conversations, desc="Extract conversations"):
             if self.args.corpus == 'cornell':
                 self.extractConversation(conversation)
+            elif self.args.corpus == 'healthy-comments':
+                self.extractHealthyComments(conversation[0], conversation[1])
             elif self.args.encode_food_descrips or self.args.encode_food_ids:
                 self.extractFoods(conversation[0], conversation[1])
             elif self.args.encode_single_food_descrip:
@@ -339,6 +347,18 @@ class TextData:
         """
         inputWords  = self.extractText(meal)
         targetWords = self.extractText(meal, True)
+
+        if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
+                self.trainingSamples.append([inputWords, targetWords])
+
+    def extractHealthyComments(self, meal, response):
+        """Extract the sample meal descriptions and healthy/unhealthy comments
+        Args:
+            meal (str): the meal description text
+            response (str): the healthy/unhealthy commentary
+        """
+        inputWords  = self.extractText(meal)
+        targetWords = self.extractText(response, True)
 
         if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
                 self.trainingSamples.append([inputWords, targetWords])
