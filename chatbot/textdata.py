@@ -75,6 +75,10 @@ class TextData:
         elif self.args.corpus == 'healthy-comments':
             self.corpusDir = '/usr/users/korpusik/nutrition/Talia_data/'
             self.samplesDir += 'healthy-comments'
+            if self.args.healthy_flag:
+                self.samplesDir += '-flag'
+            elif self.args.encode_food_ids:
+                self.samplesDir += '-foodID'
             
         self.samplesName = self._constructName()
         print(self.samplesDir, self.samplesName)
@@ -254,8 +258,11 @@ class TextData:
                 else:
                     self.createCorpus(mealData.getMeals())
             elif self.args.corpus == 'healthy-comments':
-                healthyData = HealthyData(self.corpusDir)
-                self.createCorpus(zip(healthyData.getMeals(), healthyData.getResponses()))
+                healthyData = HealthyData(self.corpusDir, self.args.healthy_flag)
+                if self.args.encode_food_ids:
+                    self.createCorpus(zip(healthyData.getFoodIDs(), healthyData.getResponses()))
+                else:
+                    self.createCorpus(zip(healthyData.getMeals(), healthyData.getResponses()))
 
             # Saving
             print('Saving dataset...')
@@ -311,10 +318,10 @@ class TextData:
         for conversation in tqdm(conversations, desc="Extract conversations"):
             if self.args.corpus == 'cornell':
                 self.extractConversation(conversation)
-            elif self.args.corpus == 'healthy-comments':
-                self.extractHealthyComments(conversation[0], conversation[1])
             elif self.args.encode_food_descrips or self.args.encode_food_ids:
                 self.extractFoods(conversation[0], conversation[1])
+            elif self.args.corpus == 'healthy-comments':
+                self.extractHealthyComments(conversation[0], conversation[1])
             elif self.args.encode_single_food_descrip:
                 self.extractFoods([conversation[0]], conversation[1])
             else:

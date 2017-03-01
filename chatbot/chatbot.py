@@ -18,7 +18,7 @@ Main script. See README.md for more information
 
 Use python 3.5 virtualenv: source py3.5env/bin/activate
 
-Train: python main.py --corpus nutrition
+Train: python main.py --corpus healthy-comments
 
 Test: python main.py --corpus nutrition --test interactive
 
@@ -114,6 +114,7 @@ class Chatbot:
         # Dataset options
         datasetArgs = parser.add_argument_group('Dataset options')
         datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset: cornell or nutrition')
+        datasetArgs.add_argument('--healthy_flag', type=int, default=0, help='whether to append healthy/unhealthy flag at end of input meal')
         datasetArgs.add_argument('--encode_food_descrips', type=int, default=0, help='whether to encode food descriptions')
         datasetArgs.add_argument('--encode_food_ids', type=int, default=0, help='whether to encode food descriptions')
         datasetArgs.add_argument('--encode_single_food_descrip', type=int, default=0, help='whether to encode single food descriptions')
@@ -168,6 +169,10 @@ class Chatbot:
         elif self.args.corpus == 'healthy-comments':
             self.args.maxLength = 100
             self.MODEL_DIR_BASE = 'save/healthy-comments'
+            if self.args.healthy_flag:
+                self.MODEL_DIR_BASE = 'save/healthy-comments-flag'
+            elif self.args.encode_food_ids:
+                self.MODEL_DIR_BASE = 'save/healthy-comments-foodID'
             self.SENTENCES_PREFIX = ['Input meal: ', 'Output comment: ']
 
         if self.args.match_encoder_decoder_input:
