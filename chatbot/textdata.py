@@ -24,6 +24,9 @@ import pickle  # Saving the data
 import math  # For float comparison
 import os  # Checking file existance
 import random
+import numpy as np
+import urllib
+import json
 
 from chatbot.cornelldata import CornellData
 from chatbot.mealdata import MealData
@@ -36,6 +39,7 @@ class Batch:
     def __init__(self):
         self.encoderSeqs = []
         self.decoderSeqs = []
+        self.contextSeqs = []
         self.targetSeqs = []
         self.weights = []
 
@@ -79,6 +83,8 @@ class TextData:
                 self.samplesDir += '-flag'
             elif self.args.encode_food_ids:
                 self.samplesDir += '-foodID'
+            elif self.args.food_context:
+                self.samplesDir += '-context'
             
         self.samplesName = self._constructName()
         print(self.samplesDir, self.samplesName)
@@ -151,6 +157,11 @@ class TextData:
                 batch.decoderSeqs.append([self.goToken] + sample[0] + [self.eosToken])
             else:
                 batch.decoderSeqs.append(target_seq_with_go)  # Add the <go> and <eos> tokens
+            if self.args.corpus == 'healthy-comments':
+                if self.args.first_step:
+                    batch.contextSeqs.append([sample[2]]+[np.zeros(64,)]*(self.args.maxLengthDeco - 1)) # add food embedding context
+                else:
+                    batch.contextSeqs.append([sample[2]]*self.args.maxLengthDeco) # add food embedding context
             batch.targetSeqs.append(target_seq_with_go[1:])  # target seq, but shifted to the left (ignore the <go>)
 
             # Long sentences should have been filtered during the dataset creation
@@ -175,20 +186,26 @@ class TextData:
         decoderSeqsT = []
         targetSeqsT = []
         weightsT = []
+        contextSeqsT = []
         for i in range(self.args.maxLengthDeco):
             decoderSeqT = []
             targetSeqT = []
             weightT = []
+            contextSeqT = []
             for j in range(batchSize):
                 decoderSeqT.append(batch.decoderSeqs[j][i])
                 targetSeqT.append(batch.targetSeqs[j][i])
                 weightT.append(batch.weights[j][i])
+                if self.args.corpus == 'healthy-comments':
+                    contextSeqT.append(batch.contextSeqs[j][i])
             decoderSeqsT.append(decoderSeqT)
             targetSeqsT.append(targetSeqT)
             weightsT.append(weightT)
+            contextSeqsT.append(contextSeqT)
         batch.decoderSeqs = decoderSeqsT
         batch.targetSeqs = targetSeqsT
         batch.weights = weightsT
+        batch.contextSeqs = contextSeqsT
 
         # # Debug
         # self.printBatch(batch)  # Input inverted, padding should be correct
@@ -258,11 +275,11 @@ class TextData:
                 else:
                     self.createCorpus(mealData.getMeals())
             elif self.args.corpus == 'healthy-comments':
-                healthyData = HealthyData(self.corpusDir, self.args.healthy_flag)
+                healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.food_context)
                 if self.args.encode_food_ids:
                     self.createCorpus(zip(healthyData.getFoodIDs(), healthyData.getResponses()))
                 else:
-                    self.createCorpus(zip(healthyData.getMeals(), healthyData.getResponses()))
+                    self.createCorpus(zip(healthyData.getMeals(), healthyData.getResponses(), healthyData.getFoodEmb()))
 
             # Saving
             print('Saving dataset...')
@@ -321,7 +338,7 @@ class TextData:
             elif self.args.encode_food_descrips or self.args.encode_food_ids:
                 self.extractFoods(conversation[0], conversation[1])
             elif self.args.corpus == 'healthy-comments':
-                self.extractHealthyComments(conversation[0], conversation[1])
+                self.extractHealthyComments(conversation[0], conversation[1], conversation[2])
             elif self.args.encode_single_food_descrip:
                 self.extractFoods([conversation[0]], conversation[1])
             else:
@@ -358,7 +375,7 @@ class TextData:
         if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
                 self.trainingSamples.append([inputWords, targetWords])
 
-    def extractHealthyComments(self, meal, response):
+    def extractHealthyComments(self, meal, response, foods):
         """Extract the sample meal descriptions and healthy/unhealthy comments
         Args:
             meal (str): the meal description text
@@ -368,7 +385,7 @@ class TextData:
         targetWords = self.extractText(response, True)
 
         if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
-                self.trainingSamples.append([inputWords, targetWords])
+                self.trainingSamples.append([inputWords, targetWords, foods])
 
     def extractFoods(self, foods, meal):
         """Extract the sample's matching food descriptions
@@ -527,7 +544,19 @@ class TextData:
             wordIds.append(self.getWordId(token, create=False))  # Create the vocabulary and the training sentences
 
         # Third step: creating the batch (add padding, reverse)
-        batch = self._createBatch([[wordIds, []]])  # Mono batch, no target output
+        sample = []
+        if self.args.food_context:
+            # *** TODO: predict foods, then sum food embeddings ***
+            #output_map = self.args.model.run_model([sentence])
+            #foodIDs = [food_seg['Hits'][0][1:] for food_seg in output_map.values()]
+            meal = sentence.replace(" ", "%20")
+            foodIDs = json.loads(urllib.request.urlopen("http://128.30.32.24:5000/lana/api/v1.0/query_IDs?raw_text="+meal).read().decode('utf-8'))
+            print('foods', foodIDs)
+            #embeddings = np.zeros(64,)
+            embeddings = np.sum([self.args.usda_vecs[foodID] for foodID in foodIDs], axis=0)
+            batch = self._createBatch([[wordIds, [], embeddings]])
+        else:
+            batch = self._createBatch([[wordIds, []]])  # Mono batch, no target output
 
         return batch
 

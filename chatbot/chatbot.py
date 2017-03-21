@@ -17,6 +17,7 @@
 Main script. See README.md for more information
 
 Use python 3.5 virtualenv: source py3.5env/bin/activate
+Use Cuda 8.0
 
 Train: python main.py --corpus healthy-comments
 
@@ -26,6 +27,9 @@ Test: python main.py --corpus nutrition --test interactive
 --encode_food_ids 1 -> uses USDA food ID as input
 --encode_single_food_descrip 1 -> uses one USDA food description as input
 --match_encoder_decoder_input 1 -> uses same input as encoder for decoder
+--attention 1 -> uses attention RNN decoder
+--food_context 1 -> adds sum of food embeddings as context to RNN decoder
+--first_step 1 -> limits food context to only first step of decoder
 
 """
 
@@ -38,6 +42,7 @@ import tensorflow as tf
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
+from chatbot.healthydata import load_usda_vecs
 
 
 class Chatbot:
@@ -113,7 +118,7 @@ class Chatbot:
 
         # Dataset options
         datasetArgs = parser.add_argument_group('Dataset options')
-        datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset: cornell or nutrition')
+        datasetArgs.add_argument('--corpus', type=str, default='cornell', help='corpus on which extract the dataset: cornell or nutrition or healthy-comment')
         datasetArgs.add_argument('--healthy_flag', type=int, default=0, help='whether to append healthy/unhealthy flag at end of input meal')
         datasetArgs.add_argument('--encode_food_descrips', type=int, default=0, help='whether to encode food descriptions')
         datasetArgs.add_argument('--encode_food_ids', type=int, default=0, help='whether to encode food descriptions')
@@ -127,9 +132,11 @@ class Chatbot:
         nnArgs = parser.add_argument_group('Network options', 'architecture related option')
         nnArgs.add_argument('--hiddenSize', type=int, default=256, help='number of hidden units in each RNN cell')
         nnArgs.add_argument('--numLayers', type=int, default=2, help='number of rnn layers')
-        nnArgs.add_argument('--embeddingSize', type=int, default=32, help='embedding size of the word representation')
+        nnArgs.add_argument('--embeddingSize', type=int, default=64, help='embedding size of the word representation')
         nnArgs.add_argument('--softmaxSamples', type=int, default=0, help='Number of samples in the sampled softmax loss function. A value of 0 deactivates sampled softmax')
         nnArgs.add_argument('--attention', type=int, default=0, help='whether to use RNN with attention')
+        nnArgs.add_argument('--food_context', type=int, default=0, help='whether to use decoder with food context vec')
+        nnArgs.add_argument('--first_step', type=int, default=0, help='whether to limit food context vec to first decode step')
         
         # Training options
         trainingArgs = parser.add_argument_group('Training options')
@@ -180,6 +187,22 @@ class Chatbot:
             
         if self.args.attention:
             self.MODEL_DIR_BASE += '-attention'
+            
+        if self.args.food_context:
+            self.MODEL_DIR_BASE += '-context'
+            self.args.usda_vecs = load_usda_vecs()
+
+        if self.args.first_step:
+            self.MODEL_DIR_BASE += '-firstStep'
+
+        '''
+        # create ranker model
+        if self.args.test and self.args.food_context:
+            import sys
+            sys.path.append('/usr/users/korpusik/LanaServer/Server/Model')
+            from ranker import Ranker
+            self.args.model = Ranker()
+        '''
 
         if not self.args.rootDir:
             self.args.rootDir = os.getcwd()  # Use the current working directory

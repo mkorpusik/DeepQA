@@ -22,6 +22,7 @@ Model to predict the next sentence given an input sequence
 import tensorflow as tf
 
 from chatbot.textdata import Batch
+from chatbot.decoders import *
 
 
 class ProjectionOp:
@@ -93,6 +94,7 @@ class Model:
         self.decoderInputs  = None  # Same that decoderTarget plus the <go>
         self.decoderTargets = None
         self.decoderWeights = None  # Adjust the learning to the target sentence size
+        self.decoderContext = None
 
         # Main operators
         self.lossFct = None
@@ -153,24 +155,45 @@ class Model:
             self.decoderTargets = [tf.placeholder(tf.int32,   [None, ], name='targets') for _ in range(self.args.maxLengthDeco)]
             self.decoderWeights = [tf.placeholder(tf.float32, [None, ], name='weights') for _ in range(self.args.maxLengthDeco)]
 
+            if self.args.corpus == 'healthy-comments':
+                self.decoderContext = [tf.placeholder(tf.float32, [None, 64,], name='context') for _ in range(self.args.maxLengthDeco)]
+
         # Define the network
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
         if self.args.attention:
             rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
+        elif self.args.food_context:
+            rnn_model = embedding_attention_context_seq2seq
         else:
             rnn_model = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq
-            
-        decoderOutputs, states = rnn_model(
-            self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
-            self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
-            encoDecoCell,
-            self.textData.getVocabularySize(),
-            self.textData.getVocabularySize(),  # Both encoder and decoder have the same number of class
-            embedding_size=self.args.embeddingSize,  # Dimension of each word
-            output_projection=outputProjection.getWeights() if outputProjection else None,
-            feed_previous=bool(self.args.test)  # When we test (self.args.test), we use previous output as next input (feed_previous)
-        )
+
+
+        if self.args.food_context:
+            decoderOutputs, states = rnn_model(
+                self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
+                self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
+                self.decoderContext,
+                encoDecoCell,
+                self.textData.getVocabularySize(),
+                self.textData.getVocabularySize(),  # Both encoder and decoder have the same number of class
+                embedding_size=self.args.embeddingSize,  # Dimension of each word
+                output_projection=outputProjection.getWeights() if outputProjection else None,
+                feed_previous=bool(self.args.test),  # When we test (self.args.test), we use previous output as next input (feed_previous)
+                first_step=self.args.first_step
+            )
+
+        else:
+            decoderOutputs, states = rnn_model(
+                self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
+                self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
+                encoDecoCell,
+                self.textData.getVocabularySize(),
+                self.textData.getVocabularySize(),  # Both encoder and decoder have the same number of class
+                embedding_size=self.args.embeddingSize,  # Dimension of each word
+                output_projection=outputProjection.getWeights() if outputProjection else None,
+                feed_previous=bool(self.args.test)  # When we test (self.args.test), we use previous output as next input (feed_previous)
+            )
 
         # For testing only
         if self.args.test:
@@ -222,6 +245,8 @@ class Model:
                 feedDict[self.decoderInputs[i]]  = batch.decoderSeqs[i]
                 feedDict[self.decoderTargets[i]] = batch.targetSeqs[i]
                 feedDict[self.decoderWeights[i]] = batch.weights[i]
+                if self.args.corpus == 'healthy-comments':
+                    feedDict[self.decoderContext[i]] = batch.contextSeqs[i]
 
             ops = (self.optOp, self.lossFct)
         else:  # Testing (batchSize == 1)
@@ -233,6 +258,9 @@ class Model:
                     feedDict[self.decoderInputs[i]]  = batch.decoderSeqs[i]
             else:
                 feedDict[self.decoderInputs[0]]  = [self.textData.goToken]
+                if self.args.corpus == 'healthy-comments':
+                    for i in range(self.args.maxLengthDeco):
+                        feedDict[self.decoderContext[i]] = batch.contextSeqs[i]
 
             ops = (self.outputs,)
 
