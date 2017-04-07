@@ -31,6 +31,11 @@ Test: python main.py --corpus nutrition --test interactive
 --food_context 1 -> adds sum of food embeddings as context to RNN decoder
 --first_step 1 -> limits food context to only first step of decoder
 
+Evaluate with BLEU:
+
+python main.py --corpus nutrition --test all
+multi-bleu.perl reference < output
+
 """
 
 import argparse  # Command line parsing
@@ -39,10 +44,11 @@ import datetime  # Chronometer
 import os  # Files management
 from tqdm import tqdm  # Progress bar
 import tensorflow as tf
+import xlrd
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
-from chatbot.healthydata import load_usda_vecs
+from chatbot.healthydata import load_usda_vecs, HealthyData
 
 
 class Chatbot:
@@ -84,6 +90,7 @@ class Chatbot:
         self.CONFIG_VERSION = '0.3'
         self.TEST_IN_NAME = 'data/test/samples.txt'
         self.TEST_OUT_SUFFIX = '_predictions.txt'
+        self.REFERENCES_SUFFIX = '_reference.txt'
         self.SENTENCES_PREFIX = ['Q: ', 'A: ']
 
     @staticmethod
@@ -127,6 +134,7 @@ class Chatbot:
         datasetArgs.add_argument('--datasetTag', type=str, default=None, help='add a tag to the dataset (file where to load the vocabulary and the precomputed samples, not the original corpus). Useful to manage multiple versions')  # The samples are computed from the corpus if it does not exist already. There are saved in \'data/samples/\'
         datasetArgs.add_argument('--ratioDataset', type=float, default=1.0, help='ratio of dataset used to avoid using the whole dataset')  # Not implemented, useless ?
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')
+        datasetArgs.add_argument('--augment', type=int, default=0, help='whether to include additional meals with similar foods')
 
         # Network options (Warning: if modifying something here, also make the change on save/loadParams() )
         nnArgs = parser.add_argument_group('Network options', 'architecture related option')
@@ -136,7 +144,7 @@ class Chatbot:
         nnArgs.add_argument('--softmaxSamples', type=int, default=0, help='Number of samples in the sampled softmax loss function. A value of 0 deactivates sampled softmax')
         nnArgs.add_argument('--attention', type=int, default=0, help='whether to use RNN with attention')
         nnArgs.add_argument('--food_context', type=int, default=0, help='whether to use decoder with food context vec')
-        nnArgs.add_argument('--first_step', type=int, default=0, help='whether to limit food context vec to first decode step')
+        nnArgs.add_argument('--first_step', type=int, default=0, help='whether to limit food context vec to first decode step and input zeros for the rest')
         
         # Training options
         trainingArgs = parser.add_argument_group('Training options')
@@ -175,12 +183,14 @@ class Chatbot:
 
         elif self.args.corpus == 'healthy-comments':
             self.args.maxLength = 100
+            self.args.usda_vecs = load_usda_vecs()
             self.MODEL_DIR_BASE = 'save/healthy-comments'
             if self.args.healthy_flag:
                 self.MODEL_DIR_BASE = 'save/healthy-comments-flag'
             elif self.args.encode_food_ids:
                 self.MODEL_DIR_BASE = 'save/healthy-comments-foodID'
             self.SENTENCES_PREFIX = ['Input meal: ', 'Output comment: ']
+            self.TEST_IN_NAME = 'data/test/healthy_comments_test.txt'
 
         if self.args.match_encoder_decoder_input:
             self.MODEL_DIR_BASE += '-match-decoder'
@@ -190,10 +200,12 @@ class Chatbot:
             
         if self.args.food_context:
             self.MODEL_DIR_BASE += '-context'
-            self.args.usda_vecs = load_usda_vecs()
 
         if self.args.first_step:
             self.MODEL_DIR_BASE += '-firstStep'
+
+        if self.args.augment:
+            self.MODEL_DIR_BASE += '-augment'
 
         '''
         # create ranker model
@@ -321,14 +333,29 @@ class Chatbot:
             sess: The current running session
         """
 
-        # Loading the file to predict
-        with open(os.path.join(self.args.rootDir, self.TEST_IN_NAME), 'r') as f:
-            lines = f.readlines()
-
         modelList = self._getModelList()
         if not modelList:
             print('Warning: No model found in \'{}\'. Please train a model before trying to predict'.format(self.modelDir))
             return
+
+        if self.args.corpus == 'healthy-comments':
+            lines = []
+            responses = []
+            corpusDir = '/usr/users/korpusik/nutrition/Talia_data/'
+            test = 'healthyfeedbackattempt1results_encouraging.xls'
+            book = xlrd.open_workbook(corpusDir + test)
+            sheet = book.sheet_by_name(book.sheet_names()[0])
+            labels = sheet.row_values(0)
+            reader = [sheet.row_values(idx) for idx in range(1, sheet.nrows)]
+            for row in reader:
+                lines.append(row[labels.index('Input.meal_response')])
+                responses.append(row[labels.index('Answer.description1')])
+            assert len(lines) == len(responses)
+        else:
+            # Loading the file to predict
+            with open(os.path.join(self.args.rootDir, self.TEST_IN_NAME), 'r') as f:
+                lines = f.readlines()
+                responses = None
 
         # Predicting for each model present in modelDir
         for modelName in sorted(modelList):  # TODO: Natural sorting
@@ -337,21 +364,30 @@ class Chatbot:
             print('Testing...')
 
             saveName = modelName[:-len(self.MODEL_EXT)] + self.TEST_OUT_SUFFIX  # We remove the model extension and add the prediction suffix
+            reference_f = open(modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX, 'w')
             with open(saveName, 'w') as f:
                 nbIgnored = 0
-                for line in tqdm(lines, desc='Sentences'):
+                for i, line in enumerate(tqdm(lines, desc='Sentences')):
                     question = line[:-1]  # Remove the endl character
+                    if responses:
+                        response = responses[i]
+                        reference_f.write(response+'\n')
 
                     answer = self.singlePredict(question)
                     if not answer:
                         nbIgnored += 1
                         continue  # Back to the beginning, try again
 
-                    predString = '{x[0]}{0}\n{x[1]}{1}\n\n'.format(question, self.textData.sequence2str(answer, clean=True), x=self.SENTENCES_PREFIX)
+                    output = self.textData.sequence2str(answer, clean=True)
+                    predString = '{x[0]}{0}\n{x[1]}{1}\n\n'.format(question, output, x=self.SENTENCES_PREFIX)
                     if self.args.verbose:
                         tqdm.write(predString)
-                    f.write(predString)
+                    f.write(output+'\n')
                 print('Prediction finished, {}/{} sentences ignored (too long)'.format(nbIgnored, len(lines)))
+            reference_f.close()
+
+        print('Output: ', modelName[:-len(self.MODEL_EXT)] + self.TEST_OUT_SUFFIX)
+        print('Refs: ', modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX)
 
     def mainTestInteractive(self, sess):
         """ Try predicting the sentences that the user will enter in the console
