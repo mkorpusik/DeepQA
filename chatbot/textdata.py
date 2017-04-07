@@ -85,6 +85,9 @@ class TextData:
                 self.samplesDir += '-foodID'
             elif self.args.food_context:
                 self.samplesDir += '-context'
+
+            if self.args.augment:
+                self.samplesDir += '-augment'
             
         self.samplesName = self._constructName()
         print(self.samplesDir, self.samplesName)
@@ -157,7 +160,7 @@ class TextData:
                 batch.decoderSeqs.append([self.goToken] + sample[0] + [self.eosToken])
             else:
                 batch.decoderSeqs.append(target_seq_with_go)  # Add the <go> and <eos> tokens
-            if self.args.corpus == 'healthy-comments':
+            if self.args.food_context:
                 if self.args.first_step:
                     batch.contextSeqs.append([sample[2]]+[np.zeros(64,)]*(self.args.maxLengthDeco - 1)) # add food embedding context
                 else:
@@ -196,8 +199,10 @@ class TextData:
                 decoderSeqT.append(batch.decoderSeqs[j][i])
                 targetSeqT.append(batch.targetSeqs[j][i])
                 weightT.append(batch.weights[j][i])
-                if self.args.corpus == 'healthy-comments':
+                if self.args.food_context:
                     contextSeqT.append(batch.contextSeqs[j][i])
+                else:
+                    contextSeqT.append(np.zeros(64,))
             decoderSeqsT.append(decoderSeqT)
             targetSeqsT.append(targetSeqT)
             weightsT.append(weightT)
@@ -275,11 +280,11 @@ class TextData:
                 else:
                     self.createCorpus(mealData.getMeals())
             elif self.args.corpus == 'healthy-comments':
-                healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.food_context)
+                self.healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.augment)
                 if self.args.encode_food_ids:
-                    self.createCorpus(zip(healthyData.getFoodIDs(), healthyData.getResponses()))
+                    self.createCorpus(zip(self.healthyData.getFoodIDs(), self.healthyData.getResponses()))
                 else:
-                    self.createCorpus(zip(healthyData.getMeals(), healthyData.getResponses(), healthyData.getFoodEmb()))
+                    self.createCorpus(zip(self.healthyData.getMeals(), self.healthyData.getResponses(), self.healthyData.getFoodEmb()))
 
             # Saving
             print('Saving dataset...')
@@ -545,14 +550,13 @@ class TextData:
 
         # Third step: creating the batch (add padding, reverse)
         sample = []
+        # predict foods, then sum food embeddings
         if self.args.food_context:
-            # *** TODO: predict foods, then sum food embeddings ***
             #output_map = self.args.model.run_model([sentence])
             #foodIDs = [food_seg['Hits'][0][1:] for food_seg in output_map.values()]
             meal = sentence.replace(" ", "%20")
-            foodIDs = json.loads(urllib.request.urlopen("http://128.30.32.24:5000/lana/api/v1.0/query_IDs?raw_text="+meal).read().decode('utf-8'))
+            foodIDs = json.loads(urllib.request.urlopen("http://128.30.34.150:5000/lana/api/v1.0/query_IDs?raw_text="+meal).read().decode('utf-8'))
             print('foods', foodIDs)
-            #embeddings = np.zeros(64,)
             embeddings = np.sum([self.args.usda_vecs[foodID] for foodID in foodIDs], axis=0)
             batch = self._createBatch([[wordIds, [], embeddings]])
         else:
