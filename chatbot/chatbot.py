@@ -197,9 +197,11 @@ class Chatbot:
             
         if self.args.attention:
             self.MODEL_DIR_BASE += '-attention'
+            self.args.softmaxSamples = 512
             
         if self.args.food_context:
             self.MODEL_DIR_BASE += '-context'
+            self.args.softmaxSamples = 512
 
         if self.args.first_step:
             self.MODEL_DIR_BASE += '-firstStep'
