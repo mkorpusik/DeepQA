@@ -121,7 +121,7 @@ class Model:
                 dtype=self.dtype
             )
 
-            def sampledSoftmax(inputs, labels):
+            def sampledSoftmax(labels, inputs):
                 labels = tf.reshape(labels, [-1, 1])  # Add one dimension (nb of true classes, here 1)
 
                 # We need to compute the sampled_softmax_loss using 32bit floats to
@@ -129,15 +129,14 @@ class Model:
                 localWt     = tf.cast(tf.transpose(outputProjection.W), tf.float32)
                 localB      = tf.cast(outputProjection.b,               tf.float32)
                 localInputs = tf.cast(inputs,                           tf.float32)
-
                 return tf.cast(
                     tf.nn.sampled_softmax_loss(
-                        localWt,  # Should have shape [num_classes, dim]
-                        localB,
-                        localInputs,
-                        labels,
-                        self.args.softmaxSamples,  # The number of classes to randomly sample per batch
-                        self.textData.getVocabularySize()),  # The number of classes
+                        weights=localWt,  # Should have shape [num_classes, dim]
+                        biases=localB,
+                        inputs=localInputs,
+                        labels=labels,
+                        num_sampled=self.args.softmaxSamples,  # The number of classes to randomly sample per batch
+                        num_classes=self.textData.getVocabularySize()),  # The number of classes
                     self.dtype)
 
         # Creation of the rnn cell
