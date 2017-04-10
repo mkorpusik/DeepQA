@@ -79,7 +79,7 @@ class HealthyData:
 
         # TODO: append vector of features indicating nutrition facts
 
-        files = ['healthybatch1results.xls', 'moreEncouragingResponses1.xls']
+        files = ['healthybatch1results.xls', 'moreEncouragingResponses1.xls', 'salad1.csv', 'salad2.csv', 'salad3.csv', 'dinner1.csv', 'dinner2.csv', 'dinner3.csv', 'pasta1.csv', 'pasta2.csv', 'pasta3.csv', 'pasta4.csv']
 
         for filen in files:
             # process excel file to match csv
