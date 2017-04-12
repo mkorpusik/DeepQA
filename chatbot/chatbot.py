@@ -131,6 +131,8 @@ class Chatbot:
         datasetArgs.add_argument('--encode_food_ids', type=int, default=0, help='whether to encode food descriptions')
         datasetArgs.add_argument('--encode_single_food_descrip', type=int, default=0, help='whether to encode single food descriptions')
         datasetArgs.add_argument('--match_encoder_decoder_input', type=int, default=0, help='whether to use same input for encoder and decoder')
+        datasetArgs.add_argument('--motivate_only', type=int, default=0, help='only use the first AMT response, the motivational support')
+        datasetArgs.add_argument('--advice_only', type=int, default=0, help='only use the 2nd AMT response, the advice part')
         datasetArgs.add_argument('--datasetTag', type=str, default=None, help='add a tag to the dataset (file where to load the vocabulary and the precomputed samples, not the original corpus). Useful to manage multiple versions')  # The samples are computed from the corpus if it does not exist already. There are saved in \'data/samples/\'
         datasetArgs.add_argument('--ratioDataset', type=float, default=1.0, help='ratio of dataset used to avoid using the whole dataset')  # Not implemented, useless ?
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')
@@ -138,8 +140,8 @@ class Chatbot:
 
         # Network options (Warning: if modifying something here, also make the change on save/loadParams() )
         nnArgs = parser.add_argument_group('Network options', 'architecture related option')
-        nnArgs.add_argument('--hiddenSize', type=int, default=256, help='number of hidden units in each RNN cell')
-        nnArgs.add_argument('--numLayers', type=int, default=2, help='number of rnn layers')
+        nnArgs.add_argument('--hiddenSize', type=int, default=50, help='number of hidden units in each RNN cell')
+        nnArgs.add_argument('--numLayers', type=int, default=1, help='number of rnn layers')
         nnArgs.add_argument('--embeddingSize', type=int, default=64, help='embedding size of the word representation')
         nnArgs.add_argument('--softmaxSamples', type=int, default=0, help='Number of samples in the sampled softmax loss function. A value of 0 deactivates sampled softmax')
         nnArgs.add_argument('--attention', type=int, default=0, help='whether to use RNN with attention')
@@ -192,6 +194,11 @@ class Chatbot:
             self.SENTENCES_PREFIX = ['Input meal: ', 'Output comment: ']
             self.TEST_IN_NAME = 'data/test/healthy_comments_test.txt'
 
+        if self.args.motivate_only:
+            self.MODEL_DIR_BASE += '-motivate'
+        elif self.args.advice_only:
+            self.MODEL_DIR_BASE += '-advice'
+
         if self.args.match_encoder_decoder_input:
             self.MODEL_DIR_BASE += '-match-decoder'
             
@@ -208,6 +215,9 @@ class Chatbot:
 
         if self.args.augment:
             self.MODEL_DIR_BASE += '-augment'
+
+        if self.args.numLayers == 2:
+            self.MODEL_DIR_BASE += '-deep'
 
         '''
         # create ranker model

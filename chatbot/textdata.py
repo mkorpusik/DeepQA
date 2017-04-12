@@ -79,6 +79,12 @@ class TextData:
         elif self.args.corpus == 'healthy-comments':
             self.corpusDir = '/usr/users/korpusik/nutrition/Talia_data/'
             self.samplesDir += 'healthy-comments'
+
+            if self.args.motivate_only:
+                self.samplesDir += '-motivate'
+            elif self.args.advice_only:
+                self.samplesDir += '-advice'
+
             if self.args.healthy_flag:
                 self.samplesDir += '-flag'
             elif self.args.encode_food_ids:
@@ -280,7 +286,7 @@ class TextData:
                 else:
                     self.createCorpus(mealData.getMeals())
             elif self.args.corpus == 'healthy-comments':
-                self.healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.augment)
+                self.healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.augment, self.args.motivate_only, self.args.advice_only)
                 if self.args.encode_food_ids:
                     self.createCorpus(zip(self.healthyData.getFoodIDs(), self.healthyData.getResponses()))
                 else:

@@ -64,7 +64,7 @@ class HealthyData:
             self.fiber = fiber
             self.sugar = sugar
 
-    def __init__(self, dirName, usda_vecs, healthy_flag = False, augment = False):
+    def __init__(self, dirName, usda_vecs, healthy_flag = False, augment = False, motivate_only = False, advice_only = False):
         """
         Args:
             dirName (string): directory where to load the corpus
@@ -96,17 +96,23 @@ class HealthyData:
                 # split different sentences into different data samples
                 if filen[-3:] == 'xls':
                     meal = row[labels.index('Input.meal_response')]
-                    responses = nltk.sent_tokenize(row[labels.index('Answer.description1')])
+                    if advice_only:
+                        responses = []
+                    else:
+                        responses = nltk.sent_tokenize(row[labels.index('Answer.description1')])
                 else:
                     meal = row['Input.meal_response']
-                    responses = nltk.sent_tokenize(row['Answer.description1'])
+                    if advice_only:
+                        responses = []
+                    else:
+                        responses = nltk.sent_tokenize(row['Answer.description1'])
                 print(meal)
 
                 # check if Turker wrote two different responses
-                if filen[-3:] == 'xls':
+                if filen[-3:] == 'xls' and not motivate_only:
                     if 'Answer.description2' in labels:
                         responses.extend(nltk.sent_tokenize(row[labels.index('Answer.description2')]))
-                else:
+                elif not motivate_only:
                     if 'Answer.description2' in row:
                         responses.extend(nltk.sent_tokenize(row['Answer.description2']))
 
