@@ -298,6 +298,10 @@ class TextData:
         else:
             print('Loading dataset from {}...'.format(dirName))
             self.loadDataset(dirName)
+            if self.args.finetune:
+                self.trainingSamples = []
+                mealData = MealData('/usr/users/zcollins/Data_Files/allfood/')
+                self.createCorpus(mealData.getMeals())
 
         assert self.padToken == 0
 
@@ -348,7 +352,7 @@ class TextData:
                 self.extractConversation(conversation)
             elif self.args.encode_food_descrips or self.args.encode_food_ids:
                 self.extractFoods(conversation[0], conversation[1])
-            elif self.args.corpus == 'healthy-comments':
+            elif self.args.corpus == 'healthy-comments' and not self.args.finetune:
                 self.extractHealthyComments(conversation[0], conversation[1], conversation[2])
             elif self.args.encode_single_food_descrip:
                 self.extractFoods([conversation[0]], conversation[1])
@@ -441,7 +445,10 @@ class TextData:
             if len(words) + len(tokens) <= self.args.maxLength:
                 tempWords = []
                 for token in tokens:
-                    tempWords.append(self.getWordId(token))  # Create the vocabulary and the training sentences
+                    if self.args.finetune:
+                        tempWords.append(self.getWordId(token, create=False))
+                    else:
+                        tempWords.append(self.getWordId(token))  # Create the vocabulary and the training sentences
 
                 if isTarget:
                     words = words + tempWords

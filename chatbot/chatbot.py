@@ -137,6 +137,7 @@ class Chatbot:
         datasetArgs.add_argument('--ratioDataset', type=float, default=1.0, help='ratio of dataset used to avoid using the whole dataset')  # Not implemented, useless ?
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')
         datasetArgs.add_argument('--augment', type=int, default=0, help='whether to include additional meals with similar foods')
+        datasetArgs.add_argument('--finetune', type=int, default=0, help='whether to continue training on nutrition data')
 
         # Network options (Warning: if modifying something here, also make the change on save/loadParams() )
         nnArgs = parser.add_argument_group('Network options', 'architecture related option')
@@ -218,6 +219,9 @@ class Chatbot:
 
         if self.args.numLayers == 2:
             self.MODEL_DIR_BASE += '-deep'
+
+        if self.args.finetune:
+            self.MODEL_DIR_BASE += '-finetune'
 
         '''
         # create ranker model
