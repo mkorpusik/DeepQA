@@ -44,7 +44,7 @@ import datetime  # Chronometer
 import os  # Files management
 from tqdm import tqdm  # Progress bar
 import tensorflow as tf
-import xlrd
+import csv
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
@@ -356,17 +356,25 @@ class Chatbot:
 
         if self.args.corpus == 'healthy-comments':
             lines = []
-            responses = []
+            responses = None
+            responses_motivate = []
+            responses_advice = []
             corpusDir = '/usr/users/korpusik/nutrition/Talia_data/'
-            test = 'healthyfeedbackattempt1results_encouraging.xls'
-            book = xlrd.open_workbook(corpusDir + test)
-            sheet = book.sheet_by_name(book.sheet_names()[0])
-            labels = sheet.row_values(0)
-            reader = [sheet.row_values(idx) for idx in range(1, sheet.nrows)]
-            for row in reader:
-                lines.append(row[labels.index('Input.meal_response')])
-                responses.append(row[labels.index('Answer.description1')])
-            assert len(lines) == len(responses)
+            files = ['salad1.csv', 'salad2.csv', 'salad3.csv', 'dinner1.csv', 'dinner2.csv', 'dinner3.csv', 'pasta1.csv', 'pasta2.csv', 'pasta3.csv', 'pasta4.csv']
+            count = 0
+            for filen in files:
+                csvfile = open(corpusDir + filen)
+                reader = csv.DictReader(csvfile)
+            
+                for row in reader:
+                    count += 1
+                    # use every 10th line for testing
+                    if count % 10 != 0:
+                        continue
+                    lines.append(row['Input.meal_response'])
+                    responses_motivate.append(row['Answer.description1'])
+                    responses_advice.append(row['Answer.description2'])
+            assert len(lines) == len(responses_motivate) == len(responses_advice)
         else:
             # Loading the file to predict
             with open(os.path.join(self.args.rootDir, self.TEST_IN_NAME), 'r') as f:
@@ -379,8 +387,12 @@ class Chatbot:
             self.saver.restore(sess, modelName)
             print('Testing...')
 
-            saveName = modelName[:-len(self.MODEL_EXT)] + self.TEST_OUT_SUFFIX  # We remove the model extension and add the prediction suffix
-            reference_f = open(modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX, 'w')
+            saveName = modelName[:-len(self.MODEL_EXT)] + '_predictions_0.1_full_data.txt'  # We remove the model extension and add the prediction suffix
+            if self.args.corpus == 'healthy-comments':
+                reference_f1 = open(modelName[:-len(self.MODEL_EXT)] + '_reference_motivate.txt', 'w')
+                reference_f2 = open(modelName[:-len(self.MODEL_EXT)] + '_reference_advice.txt', 'w')
+            else:
+                reference_f = open(modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX, 'w')
             with open(saveName, 'w') as f:
                 nbIgnored = 0
                 for i, line in enumerate(tqdm(lines, desc='Sentences')):
@@ -388,19 +400,27 @@ class Chatbot:
                     if responses:
                         response = responses[i]
                         reference_f.write(response+'\n')
+                    elif self.args.corpus == 'healthy-comments':
+                        reference_f1.write(responses_motivate[i]+'\n')
+                        reference_f2.write(responses_advice[i]+'\n')
 
                     answer = self.singlePredict(question)
                     if not answer:
                         nbIgnored += 1
                         continue  # Back to the beginning, try again
-
+                    
                     output = self.textData.sequence2str(answer, clean=True)
                     predString = '{x[0]}{0}\n{x[1]}{1}\n\n'.format(question, output, x=self.SENTENCES_PREFIX)
                     if self.args.verbose:
                         tqdm.write(predString)
                     f.write(output+'\n')
+                    
                 print('Prediction finished, {}/{} sentences ignored (too long)'.format(nbIgnored, len(lines)))
-            reference_f.close()
+            if self.args.corpus == 'healthy-comments':
+                reference_f1.close()
+                reference_f2.close()
+            else:
+                reference_f.close()
 
         print('Output: ', modelName[:-len(self.MODEL_EXT)] + self.TEST_OUT_SUFFIX)
         print('Refs: ', modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX)

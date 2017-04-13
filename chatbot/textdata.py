@@ -298,7 +298,7 @@ class TextData:
         else:
             print('Loading dataset from {}...'.format(dirName))
             self.loadDataset(dirName)
-            if self.args.finetune:
+            if self.args.finetune and not self.args.test:
                 self.trainingSamples = []
                 mealData = MealData('/usr/users/zcollins/Data_Files/allfood/')
                 self.createCorpus(mealData.getMeals())
