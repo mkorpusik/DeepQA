@@ -140,9 +140,9 @@ class Model:
                     self.dtype)
 
         # Creation of the rnn cell
-        encoDecoCell = tf.contrib.rnn.BasicLSTMCell(self.args.hiddenSize, state_is_tuple=True)  # Or GRUCell, LSTMCell(args.hiddenSize)
+        encoDecoCell = tf.contrib.rnn.BasicLSTMCell(self.args.hiddenSize, state_is_tuple=bool(not self.args.beam_search))  # Or GRUCell, LSTMCell(args.hiddenSize)
         #encoDecoCell = tf.contrib.rnn.DropoutWrapper(encoDecoCell, input_keep_prob=1.0, output_keep_prob=1.0)  # TODO: Custom values (WARNING: No dropout when testing !!!)
-        encoDecoCell = tf.contrib.rnn.MultiRNNCell([encoDecoCell] * self.args.numLayers, state_is_tuple=True)
+        encoDecoCell = tf.contrib.rnn.MultiRNNCell([encoDecoCell] * self.args.numLayers, state_is_tuple=bool(not self.args.beam_search))
 
         # Network input (placeholders)
 
@@ -164,6 +164,8 @@ class Model:
             rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
         elif self.args.food_context:
             rnn_model = embedding_attention_context_seq2seq
+        elif self.args.beam_search:
+            rnn_model = embedding_rnn_seq2seq
         else:
             rnn_model = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq
 
@@ -181,7 +183,20 @@ class Model:
                 feed_previous=bool(self.args.test),  # When we test (self.args.test), we use previous output as next input (feed_previous)
                 first_step=self.args.first_step
             )
-
+        elif self.args.beam_search:
+            decoderOutputs, states, beamPath, beamSymbols = rnn_model(
+                self.encoderInputs,
+                self.decoderInputs,
+                encoDecoCell,
+                self.textData.getVocabularySize(),
+                self.textData.getVocabularySize(),
+                embedding_size=self.args.embeddingSize,
+                output_projection=outputProjection.getWeights() if outputProjection else None,
+                feed_previous=bool(self.args.test),
+                beam_search=bool(self.args.beam_search),
+                beam_size=self.args.beam_size
+            )
+            print(len(decoderOutputs))
         else:
             decoderOutputs, states = rnn_model(
                 self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
@@ -200,6 +215,9 @@ class Model:
                 self.outputs = decoderOutputs
             else:
                 self.outputs = [outputProjection(output) for output in decoderOutputs]
+            if self.args.beam_search:
+                self.outputs.append(beamPath)
+                self.outputs.append(beamSymbols)
             
             # TODO: Attach a summary to visualize the output
 

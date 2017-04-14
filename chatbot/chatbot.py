@@ -148,6 +148,8 @@ class Chatbot:
         nnArgs.add_argument('--attention', type=int, default=0, help='whether to use RNN with attention')
         nnArgs.add_argument('--food_context', type=int, default=0, help='whether to use decoder with food context vec')
         nnArgs.add_argument('--first_step', type=int, default=0, help='whether to limit food context vec to first decode step and input zeros for the rest')
+        nnArgs.add_argument('--beam_search', type=int, default=0, help='whether to decode using beam search')
+        nnArgs.add_argument('--beam_size', type=int, default=10, help='number of candidate paths to keep on beam during beam search decode')
         
         # Training options
         trainingArgs = parser.add_argument_group('Training options')
@@ -222,6 +224,9 @@ class Chatbot:
 
         if self.args.finetune:
             self.MODEL_DIR_BASE += '-finetune'
+
+        if self.args.beam_search:
+            self.MODEL_DIR_BASE += '-beam'
 
         '''
         # create ranker model
@@ -476,7 +481,33 @@ class Chatbot:
         # Run the model
         ops, feedDict = self.model.step(batch, self.args.match_encoder_decoder_input)
         output = self.sess.run(ops[0], feedDict)  # TODO: Summarize the output too (histogram, ...)
-        answer = self.textData.deco2sentence(output)
+        if self.args.beam_search:
+            # print all candidates in beam
+            path, symbol, output = output[-2], output[-1], output[:-2]
+            #print('path', path)
+            #print('symbol', symbol)
+            #print('output[1]', output[1], output[0].shape, output[1].shape)
+            
+            k = output[0]
+            paths = []
+            for kk in range(self.args.beam_size):
+                paths.append([])
+            curr = list(range(self.args.beam_size))
+            num_steps = len(path)
+            for i in range(num_steps-1, -1, -1):
+                for kk in range(self.args.beam_size):
+                    paths[kk].append(symbol[i][curr[kk]])
+                    curr[kk] = path[i][curr[kk]]
+            recos = set()
+            print ("Replies ---------------------->")
+            for kk in range(self.args.beam_size):
+                foutputs = [int(logit) for logit in paths[kk][::-1]]
+                reply = self.textData.sequence2str(foutputs, clean=True)
+                print(reply)
+                if kk == 0:
+                    answer = foutputs
+        else:
+            answer = self.textData.deco2sentence(output)
 
         return answer
 
