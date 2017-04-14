@@ -148,7 +148,7 @@ class Chatbot:
         nnArgs.add_argument('--attention', type=int, default=0, help='whether to use RNN with attention')
         nnArgs.add_argument('--food_context', type=int, default=0, help='whether to use decoder with food context vec')
         nnArgs.add_argument('--first_step', type=int, default=0, help='whether to limit food context vec to first decode step and input zeros for the rest')
-        nnArgs.add_argument('--beam_search', type=int, default=0, help='whether to decode using beam search')
+        nnArgs.add_argument('--beam_search', type=int, default=1, help='whether to decode using beam search')
         nnArgs.add_argument('--beam_size', type=int, default=10, help='number of candidate paths to keep on beam during beam search decode')
         
         # Training options
@@ -225,8 +225,8 @@ class Chatbot:
         if self.args.finetune:
             self.MODEL_DIR_BASE += '-finetune'
 
-        if self.args.beam_search:
-            self.MODEL_DIR_BASE += '-beam'
+        #if self.args.beam_search:
+        #    self.MODEL_DIR_BASE += '-beam'
 
         '''
         # create ranker model
@@ -376,6 +376,7 @@ class Chatbot:
                     # use every 10th line for testing
                     if count % 10 != 0:
                         continue
+                    print(row['Input.meal_response'])
                     lines.append(row['Input.meal_response'])
                     responses_motivate.append(row['Answer.description1'])
                     responses_advice.append(row['Answer.description2'])
