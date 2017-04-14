@@ -79,8 +79,9 @@ class HealthyData:
 
         # TODO: append vector of features indicating nutrition facts
 
-        files = ['healthybatch1results.xls', 'moreEncouragingResponses1.xls', 'salad1.csv', 'salad2.csv', 'salad3.csv', 'dinner1.csv', 'dinner2.csv', 'dinner3.csv', 'pasta1.csv', 'pasta2.csv', 'pasta3.csv', 'pasta4.csv']
+        files = ['salad1.csv', 'salad2.csv', 'salad3.csv', 'dinner1.csv', 'dinner2.csv', 'dinner3.csv', 'pasta1.csv', 'pasta2.csv', 'pasta3.csv', 'pasta4.csv', 'healthybatch1results.xls', 'moreEncouragingResponses1.xls', 'healthyfeedbackattempt1results_encouraging.xls']
 
+        count = 0
         for filen in files:
             # process excel file to match csv
             if filen[-3:] == 'xls':
@@ -92,7 +93,12 @@ class HealthyData:
                 csvfile = open(dirName + filen)
                 reader = csv.DictReader(csvfile)
             for row in reader:
-                        
+                count += 1
+                # skip every 10th line (for testing only)
+                if count % 10 == 0 and filen[-3:] != 'xls':
+                    print('skipping test sent', row['Input.meal_response'])
+                    continue
+
                 # split different sentences into different data samples
                 if filen[-3:] == 'xls':
                     meal = row[labels.index('Input.meal_response')]
@@ -106,7 +112,7 @@ class HealthyData:
                         responses = []
                     else:
                         responses = nltk.sent_tokenize(row['Answer.description1'])
-                print(meal)
+                #print(meal)
 
                 # check if Turker wrote two different responses
                 if filen[-3:] == 'xls' and not motivate_only:
