@@ -161,7 +161,10 @@ class Model:
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
         if self.args.attention:
-            rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
+            if self.args.beam_search:
+                rnn_model = embedding_attention_seq2seq
+            else:
+                rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
         elif self.args.food_context:
             rnn_model = embedding_attention_context_seq2seq
         elif self.args.beam_search:
