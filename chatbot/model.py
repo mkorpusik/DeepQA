@@ -161,16 +161,13 @@ class Model:
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
         if self.args.attention:
-            if self.args.beam_search:
-                rnn_model = embedding_attention_seq2seq
-            else:
-                rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
+            rnn_model = embedding_attention_seq2seq
+            #rnn_model = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq
         elif self.args.food_context:
             rnn_model = embedding_attention_context_seq2seq
-        elif self.args.beam_search:
-            rnn_model = embedding_rnn_seq2seq
         else:
-            rnn_model = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq
+            rnn_model = embedding_rnn_seq2seq
+            #rnn_model = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq
 
 
         if self.args.food_context:
@@ -186,7 +183,7 @@ class Model:
                 feed_previous=bool(self.args.test),  # When we test (self.args.test), we use previous output as next input (feed_previous)
                 first_step=self.args.first_step
             )
-        elif self.args.beam_search:
+        else:
             decoderOutputs, states, beamPath, beamSymbols = rnn_model(
                 self.encoderInputs,
                 self.decoderInputs,
@@ -200,24 +197,10 @@ class Model:
                 beam_size=self.args.beam_size
             )
             print(len(decoderOutputs))
-        else:
-            decoderOutputs, states = rnn_model(
-                self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
-                self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
-                encoDecoCell,
-                self.textData.getVocabularySize(),
-                self.textData.getVocabularySize(),  # Both encoder and decoder have the same number of class
-                embedding_size=self.args.embeddingSize,  # Dimension of each word
-                output_projection=outputProjection.getWeights() if outputProjection else None,
-                feed_previous=bool(self.args.test)  # When we test (self.args.test), we use previous output as next input (feed_previous)
-            )
 
         # For testing only
         if self.args.test:
-            if not outputProjection:
-                self.outputs = decoderOutputs
-            else:
-                self.outputs = [outputProjection(output) for output in decoderOutputs]
+            self.outputs = decoderOutputs
             if self.args.beam_search:
                 self.outputs.append(beamPath)
                 self.outputs.append(beamSymbols)
