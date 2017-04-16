@@ -171,7 +171,7 @@ class Model:
 
 
         if self.args.food_context:
-            decoderOutputs, states = rnn_model(
+            decoderOutputs, states, beamPath, beamSymbols = rnn_model(
                 self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
                 self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
                 self.decoderContext,
@@ -181,7 +181,9 @@ class Model:
                 embedding_size=self.args.embeddingSize,  # Dimension of each word
                 output_projection=outputProjection.getWeights() if outputProjection else None,
                 feed_previous=bool(self.args.test),  # When we test (self.args.test), we use previous output as next input (feed_previous)
-                first_step=self.args.first_step
+                first_step=self.args.first_step,
+                beam_search=bool(self.args.beam_search),
+                beam_size=self.args.beam_size
             )
         else:
             decoderOutputs, states, beamPath, beamSymbols = rnn_model(
@@ -261,8 +263,11 @@ class Model:
                     feedDict[self.decoderInputs[i]]  = batch.decoderSeqs[i]
             else:
                 feedDict[self.decoderInputs[0]]  = [self.textData.goToken]
+                #print('decoder input size', len(batch.decoderSeqs[i]), batch.decoderSeqs[i], self.textData.goToken)
                 if self.args.corpus == 'healthy-comments':
                     for i in range(self.args.maxLengthDeco):
+                        #print('context size', len(batch.contextSeqs[i]), batch.contextSeqs[i])
+                        #print(i, batch.contextSeqs[i])
                         feedDict[self.decoderContext[i]] = batch.contextSeqs[i]
 
             ops = (self.outputs,)

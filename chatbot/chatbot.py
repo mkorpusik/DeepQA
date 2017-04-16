@@ -487,24 +487,35 @@ class Chatbot:
             path, symbol, output = output[-2], output[-1], output[:-2]
             #print('path', path)
             #print('symbol', symbol)
-            #print('output[1]', output[1], output[0].shape, output[1].shape)
             
-            k = output[0]
             paths = []
+            lastTokenIndex = []
+            num_steps = len(path)
             for kk in range(self.args.beam_size):
                 paths.append([])
+                for i in range(num_steps-1):
+                    if symbol[i][kk] == self.textData.eosToken:
+                        lastTokenIndex.append(i)
+                        break
+            #print(lastTokenIndex)
             curr = list(range(self.args.beam_size))
-            num_steps = len(path)
             for i in range(num_steps-1, -1, -1):
                 for kk in range(self.args.beam_size):
+                    if i > lastTokenIndex[kk]:
+                        continue
                     paths[kk].append(symbol[i][curr[kk]])
                     curr[kk] = path[i][curr[kk]]
-            recos = set()
+
             print ("Replies ---------------------->")
+            replies = set()
             for kk in range(self.args.beam_size):
                 foutputs = [int(logit) for logit in paths[kk][::-1]]
+                #print(foutputs)
                 reply = self.textData.sequence2str(foutputs, clean=True)
+                if reply in replies:
+                    continue
                 print(reply)
+                replies.add(reply)
                 if kk == 0:
                     answer = foutputs
         else:

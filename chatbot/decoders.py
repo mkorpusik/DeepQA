@@ -66,7 +66,6 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import rnn
-#from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.util import nest
 import tensorflow as tf
@@ -823,7 +822,10 @@ def attention_decoder_context(decoder_inputs,
                       dtype=None,
                       scope=None,
                       initial_state_attention=False,
-                      first_step=False):
+                      first_step=False,
+                      output_projection=None,
+                      beam_search=True,
+                      beam_size=10):
   """RNN decoder with attention for the sequence-to-sequence model.
   In this context "attention" means that, during decoding, the RNN can look up
   information in the additional tensor attention_states, and it does this by
@@ -891,6 +893,7 @@ def attention_decoder_context(decoder_inputs,
     if attn_length is None:
       attn_length = array_ops.shape(attention_states)[1]
     attn_size = attention_states.get_shape()[2].value
+    print('attn_size', attn_size)
 
     # To calculate W1 * h_t we use a 1-by-1 convolution, need to reshape before.
     hidden = array_ops.reshape(attention_states,
@@ -906,7 +909,13 @@ def attention_decoder_context(decoder_inputs,
           variable_scope.get_variable("AttnV_%d" % a, [attention_vec_size]))
 
     state = initial_state
-
+    if loop_function is not None and beam_search:
+      state_size =  int(initial_state.get_shape().with_rank(2)[1])
+      states=[]
+      for kk in range(1):
+        states.append(initial_state)
+        state = tf.reshape(tf.concat(states, 0), [-1, state_size])
+        
     def attention(query):
       """Put attention masks on hidden using hidden_features and query."""
       ds = []  # Results of attention reads will be stored here.
@@ -938,10 +947,19 @@ def attention_decoder_context(decoder_inputs,
         array_ops.zeros(
             batch_attn_size, dtype=dtype) for _ in xrange(num_heads)
     ]
+    print('num_heads', num_heads)
     for a in attns:  # Ensure the second shape of attention vectors is set.
       a.set_shape([None, attn_size])
     if initial_state_attention:
       attns = attention(initial_state)
+      if loop_function is not None and beam_search:
+        attns = []
+        attns.append(attention(initial_state))
+        tmp = tf.reshape(tf.concat(attns, 0), [-1, attn_size])
+        attns = []
+        attns.append(tmp)
+
+    log_beam_probs, beam_path, beam_symbols = [],[],[]
 
     for i, (inp, context) in enumerate(zip(decoder_inputs, decoder_context)):
       if i > 0:
@@ -949,7 +967,10 @@ def attention_decoder_context(decoder_inputs,
       # If loop_function is set, we use it instead of decoder_inputs.
       if loop_function is not None and prev is not None:
         with variable_scope.variable_scope("loop_function", reuse=True):
-          inp = loop_function(prev, i)
+          if beam_search:
+            inp = loop_function(prev, i, log_beam_probs, beam_path, beam_symbols)
+          else:
+            inp = loop_function(prev, i)
       # Merge input and previous attentions into one vector of the right size.
       input_size = inp.get_shape().with_rank(2)[1]
       if input_size.value is None:
@@ -958,7 +979,16 @@ def attention_decoder_context(decoder_inputs,
       # *** linearly combine embedded decoder input w/ food context vector ***
       #if (i == 0 and first_step) or (not first_step):
       #  x = linear([inp] + [context] + attns, input_size, True)
-
+      
+      if loop_function is not None and beam_search and i > 0:
+        context_size = int(context.get_shape().with_rank(2)[1])
+        context_list=[]
+        #print('context orig shape', context.shape, context[0].shape)
+        for kk in range(beam_size):
+          context_list.append(context)
+        context = tf.reshape(tf.concat(context_list, 1), [-1, context_size]) 
+        #print('context shape', context.shape)
+      #print('output size', output_size)
       x = linear([inp] + [context] + attns, input_size, True)
       
       # Run the RNN.
@@ -975,9 +1005,24 @@ def attention_decoder_context(decoder_inputs,
         output = linear([cell_output] + attns, output_size, True)
       if loop_function is not None:
         prev = output
-      outputs.append(output)
+        if i == 0 and beam_search:
+          states = []
+          for kk in range(beam_size):
+            states.append(state)
+          state = tf.reshape(tf.concat(states, 0), [-1, state_size])
+          with variable_scope.variable_scope(variable_scope.get_variable_scope(), reuse=True):
+            attns = attention(state)
 
-  return outputs, state
+      if loop_function is not None and beam_search:
+        outputs.append(tf.argmax(nn_ops.xw_plus_b(
+          output, output_projection[0], output_projection[1]), dimension=1))
+      else:
+        outputs.append(output)
+
+    if loop_function is not None and beam_search:
+      return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size])
+    else:
+      return outputs, state, None, None
 
 def attention_decoder(decoder_inputs,
                       initial_state,
@@ -1152,7 +1197,9 @@ def embedding_attention_decoder(decoder_inputs,
                                 dtype=None,
                                 scope=None,
                                 initial_state_attention=False,
-                                first_step=False):
+                                first_step=False,
+                                beam_search=True,
+                                beam_size=10):
   """RNN decoder with embedding and attention and a pure-decoding option.
   Args:
     decoder_inputs: A list of 1D batch-sized int32 Tensors (decoder inputs).
@@ -1205,7 +1252,13 @@ def embedding_attention_decoder(decoder_inputs,
 
     embedding = variable_scope.get_variable("embedding",
                                             [num_symbols, embedding_size])
-    loop_function = _extract_argmax_and_embed(
+
+    if beam_search:
+      loop_function = _extract_beam_search(
+        embedding, beam_size,num_symbols, embedding_size, output_projection,
+        update_embedding_for_previous) if feed_previous else None
+    else:
+      loop_function = _extract_argmax_and_embed(
         embedding, output_projection,
         update_embedding_for_previous) if feed_previous else None
     emb_inp = [
@@ -1221,7 +1274,10 @@ def embedding_attention_decoder(decoder_inputs,
         num_heads=num_heads,
         loop_function=loop_function,
         initial_state_attention=initial_state_attention,
-        first_step=first_step)
+        first_step=first_step,
+        output_projection=output_projection,
+        beam_search=beam_search,
+        beam_size=beam_size)
 
 
 def embedding_attention_context_seq2seq(encoder_inputs,
@@ -1237,7 +1293,9 @@ def embedding_attention_context_seq2seq(encoder_inputs,
                                 dtype=None,
                                 scope=None,
                                 initial_state_attention=False,
-                                first_step=False):
+                                first_step=False,
+                                beam_search=True,
+                                beam_size=10):
   """Embedding sequence-to-sequence model with attention.
   This model first embeds encoder_inputs by a newly created embedding (of shape
   [num_encoder_symbols x input_size]). Then it runs an RNN to encode
@@ -1316,7 +1374,9 @@ def embedding_attention_context_seq2seq(encoder_inputs,
           output_projection=output_projection,
           feed_previous=feed_previous,
           initial_state_attention=initial_state_attention,
-          first_step=first_step)
+          first_step=first_step,
+          beam_search=beam_search,
+          beam_size=beam_size)
 
     # If feed_previous is a Tensor, we construct 2 graphs and use cond.
     def decoder(feed_previous_bool):
