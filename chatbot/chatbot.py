@@ -489,13 +489,13 @@ class Chatbot:
             #print('symbol', symbol)
             
             paths = []
-            lastTokenIndex = []
             num_steps = len(path)
+            lastTokenIndex = [num_steps]*self.args.beam_size
             for kk in range(self.args.beam_size):
                 paths.append([])
                 for i in range(num_steps-1):
                     if symbol[i][kk] == self.textData.eosToken:
-                        lastTokenIndex.append(i)
+                        lastTokenIndex[kk] = i
                         break
             #print(lastTokenIndex)
             curr = list(range(self.args.beam_size))
