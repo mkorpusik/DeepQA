@@ -397,6 +397,7 @@ class Chatbot:
             if self.args.corpus == 'healthy-comments':
                 reference_f1 = open(modelName[:-len(self.MODEL_EXT)] + '_reference_motivate.txt', 'w')
                 reference_f2 = open(modelName[:-len(self.MODEL_EXT)] + '_reference_advice.txt', 'w')
+                meal_f = open('test_meals.txt', 'w')
             else:
                 reference_f = open(modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX, 'w')
             with open(saveName, 'w') as f:
@@ -409,6 +410,7 @@ class Chatbot:
                     elif self.args.corpus == 'healthy-comments':
                         reference_f1.write(responses_motivate[i]+'\n')
                         reference_f2.write(responses_advice[i]+'\n')
+                        meal_f.write(question+'\n')
 
                     answer = self.singlePredict(question)
                     if not answer:
@@ -425,6 +427,7 @@ class Chatbot:
             if self.args.corpus == 'healthy-comments':
                 reference_f1.close()
                 reference_f2.close()
+                meal_f.close()
             else:
                 reference_f.close()
 
