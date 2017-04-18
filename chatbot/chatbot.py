@@ -552,7 +552,7 @@ class Chatbot:
                     LM_term = self.args.lambda_wt * log_LM_penalty
                     score = log_probs[kk] - LM_term + length_term
                     reply_score_map[reply] = score
-                    print(score, log_probs[kk], LM_term, length_term, reply)
+                    #print(score, log_probs[kk], LM_term, length_term, reply)
                 else:
                     print(reply)
                 if kk == 0:
@@ -561,7 +561,9 @@ class Chatbot:
             if self.args.MMI:
                 sorted_replies = sorted(reply_score_map.items(), key=operator.itemgetter(1), reverse=True)
                 for i, (reply, score) in enumerate(sorted_replies):
-                        print(i, score, reply)
+                    if i == 0:
+                        answer = reply
+                    print(i, score, reply)
         else:
             answer = self.textData.deco2sentence(output)
 
