@@ -1180,7 +1180,7 @@ def attention_decoder(decoder_inputs,
         prev = output
       outputs.append(output)
 
-  return outputs, state
+  return outputs, state, None, None, None
 
 def embedding_attention_decoder(decoder_inputs,
                                 decoder_context,
