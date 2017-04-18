@@ -171,7 +171,7 @@ class Model:
 
 
         if self.args.food_context:
-            decoderOutputs, states, beamPath, beamSymbols = rnn_model(
+            decoderOutputs, states, beamPath, beamSymbols, beamProbs = rnn_model(
                 self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
                 self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
                 self.decoderContext,
@@ -186,7 +186,7 @@ class Model:
                 beam_size=self.args.beam_size
             )
         else:
-            decoderOutputs, states, beamPath, beamSymbols = rnn_model(
+            decoderOutputs, states, beamPath, beamSymbols, beamProbs = rnn_model(
                 self.encoderInputs,
                 self.decoderInputs,
                 encoDecoCell,
@@ -206,6 +206,7 @@ class Model:
             if self.args.beam_search:
                 self.outputs.append(beamPath)
                 self.outputs.append(beamSymbols)
+                self.outputs.append(beamProbs)
             
             # TODO: Attach a summary to visualize the output
 
@@ -244,8 +245,9 @@ class Model:
         ops = None
 
         if not self.args.test:  # Training
-            for i in range(self.args.maxLengthEnco):
-                feedDict[self.encoderInputs[i]]  = batch.encoderSeqs[i]
+            if not self.args.finetune:
+                for i in range(self.args.maxLengthEnco):
+                    feedDict[self.encoderInputs[i]]  = batch.encoderSeqs[i]
             for i in range(self.args.maxLengthDeco):
                 feedDict[self.decoderInputs[i]]  = batch.decoderSeqs[i]
                 feedDict[self.decoderTargets[i]] = batch.targetSeqs[i]

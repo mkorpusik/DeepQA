@@ -315,7 +315,8 @@ class TextData:
             data = {  # Warning: If adding something here, also modifying loadDataset
                 "word2id": self.word2id,
                 "id2word": self.id2word,
-                "trainingSamples": self.trainingSamples
+                "trainingSamples": self.trainingSamples,
+                "responseWords": self.healthyData.getWords()
                 }
             pickle.dump(data, handle, -1)  # Using the highest protocol available
 
@@ -329,6 +330,7 @@ class TextData:
             self.word2id = data["word2id"]
             self.id2word = data["id2word"]
             self.trainingSamples = data["trainingSamples"]
+            self.responseWords = data["responseWords"]
 
             self.padToken = self.word2id["<pad>"]
             self.goToken = self.word2id["<go>"]

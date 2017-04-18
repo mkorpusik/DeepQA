@@ -192,7 +192,7 @@ def rnn_decoder(decoder_inputs,
       outputs.append(output)
       if loop_function is not None:
         prev = output
-  return outputs, state
+  return outputs, state, None, None, None
 
 
 def beam_rnn_decoder(decoder_inputs, initial_state, cell, loop_function=None,
@@ -255,9 +255,9 @@ def beam_rnn_decoder(decoder_inputs, initial_state, cell, loop_function=None,
       else:
         outputs.append(output)
   if loop_function is not None:
-    return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size])
+    return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size]), tf.reshape(tf.concat(log_beam_probs, 0), [-1, beam_size])
   else:
-    return outputs, state, None, None
+    return outputs, state, None, None, None
 
 
 def embedding_rnn_decoder(decoder_inputs, initial_state, cell, num_symbols,
@@ -576,9 +576,9 @@ def beam_attention_decoder(decoder_inputs,
         outputs.append(output)
 
   if loop_function is not None:
-    return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size])
+    return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size]), tf.reshape(tf.concat(log_beam_probs, 0), [-1, beam_size])
   else:
-    return outputs, state, None, None
+    return outputs, state, None, None, None
 
 def beam_embedding_attention_decoder(decoder_inputs,
                                      initial_state,
@@ -1020,9 +1020,9 @@ def attention_decoder_context(decoder_inputs,
         outputs.append(output)
 
     if loop_function is not None and beam_search:
-      return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size])
+      return outputs, state, tf.reshape(tf.concat(beam_path, 0),[-1,beam_size]), tf.reshape(tf.concat(beam_symbols, 0),[-1,beam_size]), tf.reshape(tf.concat(log_beam_probs, 0), [-1, beam_size])
     else:
-      return outputs, state, None, None
+      return outputs, state, None, None, None
 
 def attention_decoder(decoder_inputs,
                       initial_state,

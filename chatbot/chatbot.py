@@ -45,6 +45,9 @@ import os  # Files management
 from tqdm import tqdm  # Progress bar
 import tensorflow as tf
 import csv
+import nltk
+import math
+import operator
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
@@ -150,6 +153,9 @@ class Chatbot:
         nnArgs.add_argument('--first_step', type=int, default=0, help='whether to limit food context vec to first decode step and input zeros for the rest')
         nnArgs.add_argument('--beam_search', type=int, default=1, help='whether to decode using beam search')
         nnArgs.add_argument('--beam_size', type=int, default=10, help='number of candidate paths to keep on beam during beam search decode')
+        nnArgs.add_argument('--MMI', type=int, default=0, help='whether to rank decoded candidates with MMI criterion')
+        nnArgs.add_argument('--lambda_wt', type=float, default=0.1, help='weight controlling how much to penalize target response in final MMI score')
+        nnArgs.add_argument('--gamma_wt', type=int, default=1, help='number words in target to penalize/weight for length term of MMI score')
         
         # Training options
         trainingArgs = parser.add_argument_group('Training options')
@@ -225,6 +231,9 @@ class Chatbot:
         if self.args.finetune:
             self.MODEL_DIR_BASE += '-finetune'
 
+        if self.args.MMI:
+            self.args.beam_size = 200
+
         #if self.args.beam_search:
         #    self.MODEL_DIR_BASE += '-beam'
 
@@ -253,6 +262,10 @@ class Chatbot:
         if self.args.createDataset:
             print('Dataset created! Thanks for using this program')
             return  # No need to go further
+
+        if self.args.MMI:
+            # create bigram language model for MMI scoring of decoder output
+            self.probDist = nltk.ConditionalProbDist(nltk.ConditionalFreqDist(nltk.bigrams(self.textData.responseWords)), nltk.MLEProbDist)
 
         with tf.device(self.getDevice()):
             self.model = Model(self.args, self.textData)
@@ -487,15 +500,18 @@ class Chatbot:
         output = self.sess.run(ops[0], feedDict)  # TODO: Summarize the output too (histogram, ...)
         if self.args.beam_search:
             # print all candidates in beam
-            path, symbol, output = output[-2], output[-1], output[:-2]
-            #print('path', path)
-            #print('symbol', symbol)
+            probs, path, symbol, output = output[-1], output[-3], output[-2], output[:-3]
+            print('probs', probs)
+            print('path', path)
+            print('symbol', symbol)
             
             paths = []
+            log_probs = []
             num_steps = len(path)
             lastTokenIndex = [num_steps]*self.args.beam_size
             for kk in range(self.args.beam_size):
                 paths.append([])
+                log_probs.append(0.0)
                 for i in range(num_steps-1):
                     if symbol[i][kk] == self.textData.eosToken:
                         lastTokenIndex[kk] = i
@@ -507,20 +523,45 @@ class Chatbot:
                     if i > lastTokenIndex[kk]:
                         continue
                     paths[kk].append(symbol[i][curr[kk]])
+                    log_probs[kk] = log_probs[kk] + probs[i][curr[kk]]
                     curr[kk] = path[i][curr[kk]]
 
             print ("Replies ---------------------->")
-            replies = set()
+            reply_score_map = {}
             for kk in range(self.args.beam_size):
                 foutputs = [int(logit) for logit in paths[kk][::-1]]
                 #print(foutputs)
                 reply = self.textData.sequence2str(foutputs, clean=True)
-                if reply in replies:
+                if reply in reply_score_map:
                     continue
-                print(reply)
-                replies.add(reply)
+                if self.args.MMI:
+                    length_term = self.args.gamma_wt * len(paths[kk])
+                    log_LM_penalty = 0.0
+                    prevWord = "<start>"
+                    for wordID in foutputs[:self.args.gamma_wt]:
+                        currWord = self.textData.id2word[wordID]
+                        bigramP = self.probDist[prevWord].prob(currWord)
+                        # TODO: try Kneser-Ney smoothing
+                        if bigramP > 0:
+                            log_LM_penalty += math.log(bigramP)
+                            print(prevWord, currWord, math.log(bigramP))
+                        else:
+                            print(prevWord, currWord, '0 bigram prob')
+                        prevWord = currWord
+                    # TODO: try with product of probs instead of sum of logs
+                    LM_term = self.args.lambda_wt * log_LM_penalty
+                    score = log_probs[kk] - LM_term + length_term
+                    reply_score_map[reply] = score
+                    print(score, log_probs[kk], LM_term, length_term, reply)
+                else:
+                    print(reply)
                 if kk == 0:
                     answer = foutputs
+            # rerank replies based on MMI scores
+            if self.args.MMI:
+                sorted_replies = sorted(reply_score_map.items(), key=operator.itemgetter(1), reverse=True)
+                for i, (reply, score) in enumerate(sorted_replies):
+                        print(i, score, reply)
         else:
             answer = self.textData.deco2sentence(output)
 

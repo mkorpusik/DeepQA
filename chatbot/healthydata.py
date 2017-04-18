@@ -227,6 +227,13 @@ class HealthyData:
     def getResponses(self):
         return self.responses
 
+    def getWords(self):
+        wordList = []
+        for response in self.getResponses():
+            wordList.append("<start>")
+            wordList.extend(nltk.tokenize.wordpunct_tokenize(response))
+        return wordList
+
     def getFoods(self):
         return self.foods
 
