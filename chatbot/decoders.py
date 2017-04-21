@@ -91,7 +91,6 @@ def _extract_beam_search(embedding, beam_size, num_symbols, embedding_size,  out
     if output_projection is not None:
       prev = nn_ops.xw_plus_b(
           prev, output_projection[0], output_projection[1])
-    # prev= prev.get_shape().with_rank(2)[1]
 
     probs  = tf.log(tf.nn.softmax(prev))
 
@@ -106,7 +105,6 @@ def _extract_beam_search(embedding, beam_size, num_symbols, embedding_size,  out
 
     symbols = indices % num_symbols # Which word in vocabulary.
     beam_parent = indices // num_symbols # Which hypothesis it came from.
-
 
     beam_symbols.append(symbols)
     beam_path.append(beam_parent)

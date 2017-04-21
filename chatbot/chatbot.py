@@ -526,7 +526,7 @@ class Chatbot:
             #print('symbol', symbol)
             
             paths = []
-            log_probs = []
+            log_probs = [] # total log prob of each candidate path
             num_steps = len(path)
             lastTokenIndex = [num_steps]*self.args.beam_size
             for kk in range(self.args.beam_size):
@@ -536,7 +536,6 @@ class Chatbot:
                     if symbol[i][kk] == self.textData.eosToken:
                         lastTokenIndex[kk] = i
                         break
-            #print(lastTokenIndex)
             curr = list(range(self.args.beam_size))
             for i in range(num_steps-1, -1, -1):
                 for kk in range(self.args.beam_size):
@@ -574,11 +573,12 @@ class Chatbot:
                     #print(score, log_probs[kk], LM_term, length_term, reply)
                 else:
                     print(reply)
+                    score = log_probs[kk]
+                    reply_score_map[reply] = log_probs[kk]
                 if kk == 0:
                     answer = foutputs
-                    if self.args.MMI:
-                        best_score = score
-                if self.args.MMI and score > best_score:
+                    best_score = score
+                elif score > best_score:
                     answer = foutputs
                     best_score = score
             # rerank replies based on MMI scores
