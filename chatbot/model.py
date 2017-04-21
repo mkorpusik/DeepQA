@@ -207,6 +207,8 @@ class Model:
                 self.outputs.append(beamPath)
                 self.outputs.append(beamSymbols)
                 self.outputs.append(beamProbs)
+            elif self.args.attention or self.args.food_context:
+                self.outputs = [outputProjection(out) for out in decoderOutputs]
             
             # TODO: Attach a summary to visualize the output
 

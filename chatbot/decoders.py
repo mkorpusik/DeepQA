@@ -677,7 +677,7 @@ def beam_embedding_attention_decoder(decoder_inputs,
         beam_size=beam_size)
     else:
       return attention_decoder(
-            emb_inp, initial_state, attention_states, cell, output_size=output_size, num_heads=num_heads, loop_function=loop_function, initial_state_attention=initial_state_attention)
+            emb_inp, initial_state, attention_states, cell, output_size=output_size, num_heads=num_heads, loop_function=loop_function, initial_state_attention=initial_state_attention, output_projection=output_projection)
 
 def embedding_attention_seq2seq(encoder_inputs,
                                 decoder_inputs,
@@ -1033,7 +1033,8 @@ def attention_decoder(decoder_inputs,
                       loop_function=None,
                       dtype=None,
                       scope=None,
-                      initial_state_attention=False):
+                      initial_state_attention=False,
+                      output_projection=None):
   """RNN decoder with attention for the sequence-to-sequence model.
   In this context "attention" means that, during decoding, the RNN can look up
   information in the additional tensor attention_states, and it does this by
@@ -1178,6 +1179,7 @@ def attention_decoder(decoder_inputs,
         output = linear([cell_output] + attns, output_size, True)
       if loop_function is not None:
         prev = output
+
       outputs.append(output)
 
   return outputs, state, None, None, None
