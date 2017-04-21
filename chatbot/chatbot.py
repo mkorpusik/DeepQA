@@ -20,21 +20,29 @@ Use python 3.5 virtualenv: source py3.5env/bin/activate
 Use Cuda 8.0
 
 Train: python main.py --corpus healthy-comments
+--attention 1 -> uses attention RNN decoder
+--food_context 1 -> adds sum of food embeddings as context to RNN decoder
+--first_step 1 -> limits food context to only first step of decoder
+--augment 1 -> augments food context w/ context vector of nearest neighbor foods
+-- healthy_flag 1 -> append word "healthy"/"unhealthy"
+--motivate_only 1 -> use only motivational data
+--advice_only 1 -> use only advice data
 
-Test: python main.py --corpus nutrition --test interactive
+Test: python main.py --corpus healthy-comments --test interactive
+--beam_search 0 -> use greedy search instead of beam search
+--beam_size 100 -> keep 100 candidate responses instead of only 10
+--all_data 1 -> use models trained on all data instead of 90% training data
 
+With --corpus nutrition:
 --encode_food_descrips 1 -> uses USDA food description as input (not meal)
 --encode_food_ids 1 -> uses USDA food ID as input
 --encode_single_food_descrip 1 -> uses one USDA food description as input
 --match_encoder_decoder_input 1 -> uses same input as encoder for decoder
---attention 1 -> uses attention RNN decoder
---food_context 1 -> adds sum of food embeddings as context to RNN decoder
---first_step 1 -> limits food context to only first step of decoder
 
 Evaluate with BLEU:
 
-python main.py --corpus nutrition --test all
-multi-bleu.perl reference < output
+python main.py --corpus healthy-comments --test all
+./multi-bleu.perl reference < output
 
 """
 
@@ -48,6 +56,7 @@ import csv
 import nltk
 import math
 import operator
+import json
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
@@ -141,6 +150,7 @@ class Chatbot:
         datasetArgs.add_argument('--maxLength', type=int, default=10, help='maximum length of the sentence (for input and output), define number of maximum step of the RNN')
         datasetArgs.add_argument('--augment', type=int, default=0, help='whether to include additional meals with similar foods')
         datasetArgs.add_argument('--finetune', type=int, default=0, help='whether to continue training on nutrition data')
+        datasetArgs.add_argument('--all_data', type=int, default=0, help='whether to use the full model trained on all data')
 
         # Network options (Warning: if modifying something here, also make the change on save/loadParams() )
         nnArgs = parser.add_argument_group('Network options', 'architecture related option')
@@ -195,7 +205,10 @@ class Chatbot:
         elif self.args.corpus == 'healthy-comments':
             self.args.maxLength = 100
             self.args.usda_vecs = load_usda_vecs()
-            self.MODEL_DIR_BASE = 'save/healthy-comments'
+            if self.args.all_data:
+                self.MODEL_DIR_BASE = 'save_allData/healthy-comments'
+            else:
+                self.MODEL_DIR_BASE = 'save/healthy-comments'
             if self.args.healthy_flag:
                 self.MODEL_DIR_BASE = 'save/healthy-comments-flag'
             elif self.args.encode_food_ids:
@@ -291,9 +304,6 @@ class Chatbot:
             self.managePreviousModel(self.sess)
 
         if self.args.test:
-            # TODO: For testing, add a mode where instead taking the most likely output after the <go> token,
-            # takes the second or third so it generates new sentences for the same input. Difficult to implement,
-            # probably have to modify the TensorFlow source code
             if self.args.test == Chatbot.TestMode.INTERACTIVE:
                 self.mainTestInteractive(self.sess)
             elif self.args.test == Chatbot.TestMode.ALL:
@@ -389,7 +399,7 @@ class Chatbot:
                     # use every 10th line for testing
                     if count % 10 != 0:
                         continue
-                    print(row['Input.meal_response'])
+                    #print(row['Input.meal_response'])
                     lines.append(row['Input.meal_response'])
                     responses_motivate.append(row['Answer.description1'])
                     responses_advice.append(row['Answer.description2'])
@@ -401,12 +411,16 @@ class Chatbot:
                 responses = None
 
         # Predicting for each model present in modelDir
+        meal_response_map = {} # maps meals to list of candidate responses
         for modelName in sorted(modelList):  # TODO: Natural sorting
             print('Restoring previous model from {}'.format(modelName))
             self.saver.restore(sess, modelName)
             print('Testing...')
 
-            saveName = modelName[:-len(self.MODEL_EXT)] + '_predictions_0.1_full_data.txt'  # We remove the model extension and add the prediction suffix
+            saveName = modelName[:-len(self.MODEL_EXT)] + '_predictions_0.1_full_data'  # We remove the model extension and add the prediction suffix
+            if self.args.MMI:
+                saveName += '_MMI_'+str(self.args.lambda_wt)+'_'+str(self.args.gamma_wt)
+            saveName += '.txt'
             if self.args.corpus == 'healthy-comments':
                 reference_f1 = open(modelName[:-len(self.MODEL_EXT)] + '_reference_motivate.txt', 'w')
                 reference_f2 = open(modelName[:-len(self.MODEL_EXT)] + '_reference_advice.txt', 'w')
@@ -425,12 +439,14 @@ class Chatbot:
                         reference_f2.write(responses_advice[i]+'\n')
                         meal_f.write(question+'\n')
 
-                    answer = self.singlePredict(question)
+                    answer, predict_responses = self.singlePredict(question)
                     if not answer:
                         nbIgnored += 1
                         continue  # Back to the beginning, try again
                     
                     output = self.textData.sequence2str(answer, clean=True)
+                    predict_responses = [self.textData.sequence2str(reply, clean=True) for reply in predict_responses]
+                    meal_response_map[question] = predict_responses
                     predString = '{x[0]}{0}\n{x[1]}{1}\n\n'.format(question, output, x=self.SENTENCES_PREFIX)
                     if self.args.verbose:
                         tqdm.write(predString)
@@ -443,6 +459,9 @@ class Chatbot:
                 meal_f.close()
             else:
                 reference_f.close()
+
+        with open(modelName[:-len(self.MODEL_EXT)] + 'predict_candidates.json', 'w') as fp:
+            json.dump(meal_response_map, fp)
 
         print('Output: ', modelName[:-len(self.MODEL_EXT)] + self.TEST_OUT_SUFFIX)
         print('Refs: ', modelName[:-len(self.MODEL_EXT)] + self.REFERENCES_SUFFIX)
@@ -467,7 +486,7 @@ class Chatbot:
                 break
 
             questionSeq = []  # Will be contain the question as seen by the encoder
-            answer = self.singlePredict(question, questionSeq)
+            answer, candidates = self.singlePredict(question, questionSeq)
             if not answer:
                 print('Warning: sentence too long, sorry. Maybe try a simpler sentence.')
                 continue  # Back to the beginning, try again
@@ -498,12 +517,13 @@ class Chatbot:
         # Run the model
         ops, feedDict = self.model.step(batch, self.args.match_encoder_decoder_input)
         output = self.sess.run(ops[0], feedDict)  # TODO: Summarize the output too (histogram, ...)
+        candidates = []
         if self.args.beam_search:
             # print all candidates in beam
             probs, path, symbol, output = output[-1], output[-3], output[-2], output[:-3]
-            print('probs', probs)
-            print('path', path)
-            print('symbol', symbol)
+            #print('probs', probs)
+            #print('path', path)
+            #print('symbol', symbol)
             
             paths = []
             log_probs = []
@@ -526,10 +546,12 @@ class Chatbot:
                     log_probs[kk] = log_probs[kk] + probs[i][curr[kk]]
                     curr[kk] = path[i][curr[kk]]
 
-            print ("Replies ---------------------->")
+            #print ("Replies ---------------------->")
             reply_score_map = {}
+            best_score = None
             for kk in range(self.args.beam_size):
                 foutputs = [int(logit) for logit in paths[kk][::-1]]
+                candidates.append(foutputs)
                 #print(foutputs)
                 reply = self.textData.sequence2str(foutputs, clean=True)
                 if reply in reply_score_map:
@@ -544,9 +566,6 @@ class Chatbot:
                         # TODO: try Kneser-Ney smoothing
                         if bigramP > 0:
                             log_LM_penalty += math.log(bigramP)
-                            print(prevWord, currWord, math.log(bigramP))
-                        else:
-                            print(prevWord, currWord, '0 bigram prob')
                         prevWord = currWord
                     # TODO: try with product of probs instead of sum of logs
                     LM_term = self.args.lambda_wt * log_LM_penalty
@@ -557,17 +576,22 @@ class Chatbot:
                     print(reply)
                 if kk == 0:
                     answer = foutputs
+                    if self.args.MMI:
+                        best_score = score
+                if self.args.MMI and score > best_score:
+                    answer = foutputs
+                    best_score = score
             # rerank replies based on MMI scores
             if self.args.MMI:
                 sorted_replies = sorted(reply_score_map.items(), key=operator.itemgetter(1), reverse=True)
                 for i, (reply, score) in enumerate(sorted_replies):
-                    if i == 0:
-                        answer = reply
-                    print(i, score, reply)
+                    if self.args.test == 'interactive':
+                        print(i, score, reply)
         else:
             answer = self.textData.deco2sentence(output)
+            candidates.append(answer)
 
-        return answer
+        return answer, candidates
 
     def daemonPredict(self, sentence):
         """ Return the answer to a given sentence (same as singlePredict() but with additional cleaning)

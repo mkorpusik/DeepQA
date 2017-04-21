@@ -60,7 +60,10 @@ class TextData:
         # Path variables
         if self.args.corpus == 'cornell':
             self.corpusDir = os.path.join(self.args.rootDir, 'data/cornell/')
-        self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')
+        if self.args.all_data:
+            self.samplesDir = os.path.join(self.args.rootDir, 'data/samples_allData/')
+        else:
+            self.samplesDir = os.path.join(self.args.rootDir, 'data/samples/')
         if self.args.corpus == 'nutrition':
             self.corpusDir = '/usr/users/zcollins/Data_Files/allfood/'
             if self.args.encode_food_descrips:
@@ -286,7 +289,7 @@ class TextData:
                 else:
                     self.createCorpus(mealData.getMeals())
             elif self.args.corpus == 'healthy-comments':
-                self.healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.augment, self.args.motivate_only, self.args.advice_only)
+                self.healthyData = HealthyData(self.corpusDir, self.args.usda_vecs, self.args.healthy_flag, self.args.augment, self.args.motivate_only, self.args.advice_only, self.args.all_data)
                 if self.args.encode_food_ids:
                     self.createCorpus(zip(self.healthyData.getFoodIDs(), self.healthyData.getResponses()))
                 else:

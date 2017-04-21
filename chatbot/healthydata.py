@@ -64,7 +64,7 @@ class HealthyData:
             self.fiber = fiber
             self.sugar = sugar
 
-    def __init__(self, dirName, usda_vecs, healthy_flag = False, augment = False, motivate_only = False, advice_only = False):
+    def __init__(self, dirName, usda_vecs, healthy_flag = False, augment = False, motivate_only = False, advice_only = False, all_data = False):
         """
         Args:
             dirName (string): directory where to load the corpus
@@ -80,6 +80,8 @@ class HealthyData:
         # TODO: append vector of features indicating nutrition facts
 
         files = ['salad1.csv', 'salad2.csv', 'salad3.csv', 'dinner1.csv', 'dinner2.csv', 'dinner3.csv', 'pasta1.csv', 'pasta2.csv', 'pasta3.csv', 'pasta4.csv', 'healthybatch1results.xls', 'moreEncouragingResponses1.xls', 'healthyfeedbackattempt1results_encouraging.xls']
+        if all_data:
+            files = files = ['healthybatch1results.xls', 'moreEncouragingResponses1.xls', 'salad1.csv', 'salad2.csv', 'salad3.csv', 'dinner1.csv', 'dinner2.csv', 'dinner3.csv', 'pasta1.csv', 'pasta2.csv', 'pasta3.csv', 'pasta4.csv']
 
         count = 0
         for filen in files:
@@ -95,7 +97,7 @@ class HealthyData:
             for row in reader:
                 count += 1
                 # skip every 10th line (for testing only)
-                if count % 10 == 0 and filen[-3:] != 'xls':
+                if not all_data and count % 10 == 0 and filen[-3:] != 'xls':
                     print('skipping test sent', row['Input.meal_response'])
                     continue
 
